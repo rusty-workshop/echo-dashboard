@@ -1,0 +1,364 @@
+/* ==========================================================================
+   Aurora Dashboard - stylesheet
+   Primary target: Amazon Echo Show 5 (1st gen), 960x480 landscape, kiosk
+   Chrome/WebView. Sizing uses clamp()/vw/vh throughout instead of fixed
+   pixel values so the same layout scales sensibly on other screens too.
+   ========================================================================== */
+
+:root {
+  /* True black background: OLED-friendly, and reads as "premium display"
+     even on the Echo Show's LCD panel. Surfaces sit a little above it,
+     Material dark-theme style, so cards read as distinct elevated layers. */
+  --bg: #000000;
+  --surface: #121212;
+  --surface-elevated: #1c1c1e;
+
+  --text-primary: #f5f5f5;
+  --text-secondary: #9a9a9a;
+  --text-tertiary: #6b6b6b;
+
+  --accent: #6fc3ff;       /* clock weekday, schedule times - "live" data */
+  --accent-warm: #ffb74d;  /* reconnecting state */
+  --accent-danger: #ff6b6b; /* offline state */
+
+  --divider: rgba(255, 255, 255, 0.08);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-lg: 1.25rem;
+
+  /* System font stack, not a webfont: the Echo Show may have no internet
+     route to Aurora (let alone a font CDN) for long stretches, and this
+     is meant to be fully self-contained static files. Roboto is the
+     system font on stock Android/LineageOS, so this renders as intended
+     there with zero network dependency. */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ---- Reset / base ------------------------------------------------------ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden; /* kiosk display: no scrollbars on the primary target */
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text-primary);
+  -webkit-user-select: none;
+  user-select: none; /* this is a display, not a document */
+  cursor: none; /* touch kiosk with no mouse - see design goals */
+}
+
+/* ---- Overall layout ------------------------------------------------------
+   Two rows: the clock takes its natural height, the card grid fills
+   whatever is left. Fluid gap/padding keeps this from feeling cramped on
+   960x480 or wasteful on a larger display. */
+
+.dashboard {
+  height: 100vh;
+  width: 100vw;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: clamp(0.6rem, 1.8vh, 1.25rem);
+  padding: clamp(0.75rem, 2.2vw, 1.75rem);
+}
+
+.clock-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(0.1rem, 0.6vh, 0.3rem);
+}
+
+.clock-time {
+  font-size: clamp(2.75rem, 11vw, 5.5rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums; /* digits don't jitter the layout as they change */
+}
+
+.clock-date {
+  display: flex;
+  gap: 0.6em;
+  font-size: clamp(1rem, 2.2vw, 1.4rem);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.clock-weekday {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---- Card grid -----------------------------------------------------------
+   Four columns fits the four v1.0 cards in one row on a 960px-wide kiosk
+   screen. Adding a future card (see index.html's comment) just means
+   adding a fifth <section class="card"> - drop to 3 columns / two rows
+   here, or switch to auto-fit, if the grid ever needs to grow past what
+   comfortably fits in one row. */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(0.6rem, 1.6vw, 1.25rem);
+  min-height: 0; /* let cards shrink instead of overflowing the viewport */
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: clamp(0.85rem, 2vh, 1.4rem) clamp(0.9rem, 1.8vw, 1.4rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.4rem, 1.2vh, 0.75rem);
+  min-width: 0;  /* required for text-overflow: ellipsis inside a grid item */
+  min-height: 0;
+  overflow: hidden;
+  animation: card-fade-in 480ms ease-out backwards;
+}
+
+.card:nth-child(1) { animation-delay: 0ms; }
+.card:nth-child(2) { animation-delay: 60ms; }
+.card:nth-child(3) { animation-delay: 120ms; }
+.card:nth-child(4) { animation-delay: 180ms; }
+
+.card-title {
+  margin: 0;
+  font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.2rem, 0.8vh, 0.4rem);
+}
+
+/* ---- Weather card -------------------------------------------------------- */
+
+.weather-icon {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1;
+}
+
+.weather-temp {
+  font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-condition {
+  color: var(--text-secondary);
+  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+}
+
+.weather-range {
+  display: flex;
+  gap: 1.2em;
+  margin-top: 0.15rem;
+  font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+  color: var(--text-secondary);
+}
+
+.weather-range b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ---- Phone card ----------------------------------------------------------- */
+
+.phone-battery {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: clamp(1.3rem, 3vw, 1.9rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-icon {
+  font-size: 0.85em;
+}
+
+.phone-charging {
+  font-size: clamp(0.8rem, 1.6vw, 1rem);
+  color: var(--text-secondary);
+}
+
+.phone-notifications {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.2rem;
+  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+  color: var(--text-secondary);
+}
+
+/* ---- Today's Schedule card ------------------------------------------------ */
+
+.schedule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.35rem, 1vh, 0.6rem);
+  overflow: hidden;
+}
+
+.schedule-item {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+}
+
+.schedule-time {
+  flex: none;
+  min-width: 4.4em;
+  color: var(--accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* ---- Next Alarm card ------------------------------------------------------- */
+
+.alarm-time {
+  font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Connection status ------------------------------------------------------
+   Deliberately understated - invisible while data is fresh, fading in
+   only once Aurora has been unreachable for a while. A premium display
+   shouldn't nag about connectivity; it should just keep showing the last
+   good data (see script.js) and mention it quietly. */
+
+.connection-status {
+  position: fixed;
+  right: clamp(0.75rem, 2vw, 1.5rem);
+  bottom: clamp(0.6rem, 1.8vh, 1.25rem);
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: clamp(0.7rem, 1.3vw, 0.85rem);
+  color: var(--text-tertiary);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 400ms ease, transform 400ms ease, color 400ms ease;
+  pointer-events: none;
+}
+
+.connection-status.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.connection-status .dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.connection-status.state-reconnecting {
+  color: var(--accent-warm);
+}
+
+.connection-status.state-offline {
+  color: var(--accent-danger);
+}
+
+/* ---- Animations ------------------------------------------------------------ */
+
+@keyframes card-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Applied briefly by script.js to any value element whose content just
+   changed, so updates register as a subtle "beat" rather than a jump-cut. */
+@keyframes value-pulse {
+  0% {
+    opacity: 0.35;
+    transform: translateY(-3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.value-pulse {
+  animation: value-pulse 420ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---- Responsive fallbacks ----------------------------------------------------
+   The 960x480 kiosk is the primary target, but this should still hold up
+   in a normal browser window or a taller/narrower panel. */
+
+@media (max-width: 760px), (max-aspect-ratio: 4/3) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Genuinely cramped (e.g. a phone in portrait) - allow scrolling rather
+     than crushing every card down to be unreadable. */
+  html,
+  body {
+    overflow: auto;
+  }
+
+  .dashboard {
+    height: auto;
+    min-height: 100vh;
+  }
+}

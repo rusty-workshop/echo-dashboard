@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Fixed kiosk display: no pinch-zoom, no accidental double-tap zoom. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Aurora Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="dashboard" id="dashboard">
+    <!-- Clock: driven entirely by the device's own local time in script.js,
+         ticks every second - independent of the Aurora poll loop. -->
+    <header class="clock-panel">
+      <div class="clock-time" id="clock-time" aria-live="off">--:--</div>
+      <div class="clock-date">
+        <span class="clock-weekday" id="clock-weekday">-</span>
+        <span class="clock-monthday" id="clock-monthday">-</span>
+      </div>
+    </header>
+
+    <!--
+      Card grid. Each card is a self-contained <section> with its own
+      heading and a handful of elements script.js writes into by id.
+      To add a future card (Wi-Fi, volume mode, morning greeting, quote of
+      the day, smart home controls, ...): add a <section class="card"> here
+      following the same shape, add matching ids, and add one render
+      function in script.js's FUTURE EXPANSION area. No CSS changes should
+      be required - see the comment above .card-grid in style.css.
+    -->
+    <main class="card-grid">
+      <section class="card card-weather" id="card-weather" aria-label="Weather">
+        <h2 class="card-title">Weather</h2>
+        <div class="card-body">
+          <div class="weather-icon" id="weather-icon">–</div>
+          <div class="weather-temp" id="weather-temp">--°</div>
+          <div class="weather-condition" id="weather-condition">No data</div>
+          <div class="weather-range">
+            <span>High <b id="weather-high">--°</b></span>
+            <span>Low <b id="weather-low">--°</b></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card card-phone" id="card-phone" aria-label="Phone">
+        <h2 class="card-title">Phone</h2>
+        <div class="card-body">
+          <div class="phone-battery">
+            <span class="phone-icon" id="phone-battery-icon">🔋</span>
+            <span id="phone-battery-level">--%</span>
+          </div>
+          <div class="phone-charging" id="phone-charging">–</div>
+          <div class="phone-notifications">
+            <span class="phone-icon">🔔</span>
+            <span id="phone-notif-count">-- notifications</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card card-schedule" id="card-schedule" aria-label="Today's Schedule">
+        <h2 class="card-title">Today's Schedule</h2>
+        <ul class="schedule-list" id="schedule-list">
+          <li class="schedule-empty">No events</li>
+        </ul>
+      </section>
+
+      <section class="card card-alarm" id="card-alarm" aria-label="Next Alarm">
+        <h2 class="card-title">Next Alarm</h2>
+        <div class="card-body">
+          <div class="alarm-time" id="alarm-time">–</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Deliberately subtle - a premium display shouldn't shout about
+         connectivity. Empty/invisible while everything is fresh; script.js
+         fills it in and fades it up only once data starts going stale. -->
+    <div class="connection-status" id="connection-status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="connection-text"></span>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

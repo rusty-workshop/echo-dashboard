@@ -817,18 +817,23 @@ input {
 .page-dots {
   position: fixed;
   left: 50%;
-  bottom: clamp(0.3rem, 1vh, 0.5rem);
+  /* Needs real clearance from the bottom edge, not just a few px - on the
+     actual Echo Show hardware the touchscreen digitizer's active area
+     falls short of the physical bezel, so dots placed too close to the
+     edge render fine but are effectively untappable. Confirmed on-device
+     that the previous ~5-8px offset landed in that dead zone. */
+  bottom: clamp(0.85rem, 2.6vh, 1.3rem);
   transform: translateX(-50%);
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   z-index: 10;
 }
 
 .page-dot {
   width: 0.4rem;
   height: 0.4rem;
-  padding: 0.4rem;
-  margin: -0.4rem;
+  padding: 0.6rem;
+  margin: -0.6rem;
   border: none;
   border-radius: 50%;
   background: transparent;

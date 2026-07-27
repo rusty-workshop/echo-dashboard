@@ -39,6 +39,10 @@ const VOLUME_DEBOUNCE_MS = 400;
 // "reconnecting" to a more visible "offline" state.
 const OFFLINE_AFTER_FAILURES = 3;
 
+// Below this and not charging, the battery warning banner shows - matches
+// Android's own default low-battery threshold.
+const LOW_BATTERY_THRESHOLD = 15;
+
 // Bumped whenever the /dashboard schema changes - an old cached response
 // missing a newer field (e.g. soundMachine) would otherwise crash the
 // renderer that expects it. A version bump just invalidates the old entry
@@ -127,6 +131,8 @@ const ICONS = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 10v4"/><rect x="5" y="9.5" width="10" height="5" fill="currentColor" stroke="none"/></svg>',
   batteryCharging:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 10v4"/><path d="M12 9l-3 4h3l-1 4 4-5h-3z" fill="currentColor" stroke="none"/></svg>',
+  batteryAlert:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 10v4"/><path d="M11 9v3M11 15h.01" stroke-width="2.4"/></svg>',
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
   calendar:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
@@ -253,6 +259,29 @@ function currentHourInTimezone(timeZone) {
   return Number.isNaN(raw) ? new Date().getHours() : raw;
 }
 
+/** Same idea as currentHourInTimezone, but minute-precise - needed to dim/
+ *  brighten at the actual sunrise/sunset minute rather than only on the hour. */
+function currentMinutesInTimezone(timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+  return hour * 60 + minute;
+}
+
+function minutesFromHHMM(hhmm) {
+  const [hour, minute] = hhmm.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
 // ---------------------------------------------------------------------------
 // Clock - independent of the Aurora poll loop, ticks every second. Also
 // refreshes the status line's relative "Updated Xs ago" text on the same
@@ -269,6 +298,45 @@ function currentHourInTimezone(timeZone) {
 // ---------------------------------------------------------------------------
 
 let currentTimezone = null;
+
+// Fallback dim/brighten window, used only until the first successful
+// weather fetch provides real sunrise/sunset - same "known data beats a
+// guess, but a guess beats nothing" pattern as currentTimezone above.
+const NIGHT_MODE_FALLBACK_START_MIN = 21 * 60; // 9:00 PM
+const NIGHT_MODE_FALLBACK_END_MIN = 7 * 60; // 7:00 AM
+
+// If Fully Kiosk's JS interface is enabled, these also dim/restore the
+// actual hardware backlight, not just this page's own contents - purely
+// cosmetic (CSS-only) if it isn't, see applyDayNightMode() below.
+const NIGHT_SCREEN_BRIGHTNESS = 20;
+const DAY_SCREEN_BRIGHTNESS = 100;
+
+let latestSunrise = null; // "HH:mm", set by renderWeather()
+let latestSunset = null;
+let isNightMode = null; // null = not yet determined
+
+/**
+ * Dims the whole display at night for bedside comfort, brightens it back
+ * for the morning - prefers actual sunrise/sunset (accounts for season and
+ * latitude) once weather data is in, falls back to a fixed 9pm-7pm window
+ * until then. Only touches the DOM/JS bridge on an actual day/night
+ * transition, not every tick, so this is cheap to call from updateClock().
+ */
+function applyDayNightMode() {
+  const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
+  const sunriseMinutes = latestSunrise ? minutesFromHHMM(latestSunrise) : NIGHT_MODE_FALLBACK_END_MIN;
+  const sunsetMinutes = latestSunset ? minutesFromHHMM(latestSunset) : NIGHT_MODE_FALLBACK_START_MIN;
+
+  const night = nowMinutes >= sunsetMinutes || nowMinutes < sunriseMinutes;
+  if (night === isNightMode) return;
+  isNightMode = night;
+
+  document.body.classList.toggle("dimmed", night);
+
+  if (window.fully && typeof window.fully.setScreenBrightness === "function") {
+    window.fully.setScreenBrightness(night ? NIGHT_SCREEN_BRIGHTNESS : DAY_SCREEN_BRIGHTNESS);
+  }
+}
 
 function clockTimeParts(now, timeZone) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -311,6 +379,7 @@ function updateClock() {
   setText("clock-monthday-lg", monthdayText);
 
   updateStatusLine();
+  applyDayNightMode();
 }
 
 function startClock() {
@@ -335,6 +404,8 @@ function renderWeather(weather) {
     setText("weather-condition-lg", "No data");
     setText("weather-high-lg", "--°");
     setText("weather-low-lg", "--°");
+    setText("weather-sunrise-lg", "--:--");
+    setText("weather-sunset-lg", "--:--");
     return;
   }
 
@@ -356,11 +427,28 @@ function renderWeather(weather) {
   setText("weather-condition-lg", weather.condition);
   setText("weather-high-lg", high);
   setText("weather-low-lg", low);
+  setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
+  setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
 
   applyAccentColor(weather.condition);
 
   // Drives the clock's timezone too - see the comment above updateClock().
   if (weather.timezone) currentTimezone = weather.timezone;
+  // Drives applyDayNightMode()'s dim/brighten thresholds too.
+  latestSunrise = weather.sunrise || null;
+  latestSunset = weather.sunset || null;
+}
+
+function renderBatteryWarning(battery, charging) {
+  const banner = byId("battery-warning");
+  if (!banner) return;
+
+  const low = battery < LOW_BATTERY_THRESHOLD && !charging;
+  banner.classList.toggle("hidden", !low);
+  if (!low) return;
+
+  setIcon("battery-warning-icon", "batteryAlert");
+  setText("battery-warning-text", `Phone battery at ${battery}% - plug it in`);
 }
 
 function renderPhone(battery, charging) {
@@ -588,6 +676,7 @@ function renderDashboard(data) {
   renderMorningBriefing(data);
   renderWeather(data.weather);
   renderPhone(data.battery, data.charging);
+  renderBatteryWarning(data.battery, data.charging);
   renderNotifications(data.notificationGroups);
   renderSchedule(data.calendar, data.calendarShowsTomorrow);
   renderAlarm(data.nextAlarm);

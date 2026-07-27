@@ -48,6 +48,11 @@
           <span class="dot" aria-hidden="true"></span>
           <span id="status-text"></span>
         </div>
+
+        <div class="battery-warning hidden" id="battery-warning" role="alert">
+          <span class="icon-slot small" id="battery-warning-icon" aria-hidden="true"></span>
+          <span id="battery-warning-text"></span>
+        </div>
       </section>
 
       <!--
@@ -188,6 +193,10 @@
           <div class="weather-range-lg">
             <span>H <b id="weather-high-lg">--°</b></span>
             <span>L <b id="weather-low-lg">--°</b></span>
+          </div>
+          <div class="weather-range-lg" id="weather-sun-lg">
+            <span>Sunrise <b id="weather-sunrise-lg">--:--</b></span>
+            <span>Sunset <b id="weather-sunset-lg">--:--</b></span>
           </div>
         </div>
 

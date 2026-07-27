@@ -88,6 +88,15 @@ body {
   color: var(--text-primary);
   -webkit-user-select: none;
   user-select: none; /* this is a display, not a document */
+  filter: brightness(1);
+  transition: filter 3s ease;
+}
+
+/* Bedside comfort at night: dims the whole display, not just one card -
+   a slow 3s transition so it reads as the room settling in, not a jarring
+   flicker. See applyDayNightMode() in script.js for when this toggles. */
+body.dimmed {
+  filter: brightness(0.45) contrast(0.95);
 }
 
 button,
@@ -240,6 +249,29 @@ input {
 
 .status-line.state-offline {
   color: var(--accent-danger);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ---- Low battery banner ----------------------------------------------------
+   Only shown when the phone is genuinely low and not charging - a bedside
+   device that dies overnight defeats the point, so this is the one place
+   the dashboard is allowed to be louder than its usual quiet, muted tone. */
+
+.battery-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.6em;
+  padding: 0.5em 0.9em;
+  border-radius: 0.6em;
+  background: color-mix(in srgb, var(--accent-danger) 18%, transparent);
+  color: var(--accent-danger);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  width: fit-content;
 }
 
 /* ---- Card grid -----------------------------------------------------------

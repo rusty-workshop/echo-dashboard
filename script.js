@@ -43,7 +43,7 @@ const OFFLINE_AFTER_FAILURES = 3;
 // missing a newer field (e.g. soundMachine) would otherwise crash the
 // renderer that expects it. A version bump just invalidates the old entry
 // instead of trying to migrate it.
-const CACHE_KEY = "aurora-dashboard:last-good-response:v3";
+const CACHE_KEY = "aurora-dashboard:last-good-response:v4";
 const HOST_OVERRIDE_KEY = "aurora-dashboard:host-override";
 
 // ---------------------------------------------------------------------------
@@ -402,9 +402,13 @@ function renderNotifications(groups) {
   if (listLg) listLg.innerHTML = html;
 }
 
-function renderSchedule(events) {
+function renderSchedule(events, showsTomorrow) {
   setIcon("schedule-title-icon", "calendar");
   setIcon("schedule-title-icon-lg", "calendar");
+
+  const titleText = showsTomorrow ? "Tomorrow's Schedule" : "Today's Schedule";
+  setText("schedule-title-text", titleText);
+  setText("schedule-title-text-lg", titleText);
 
   const html =
     !events || events.length === 0
@@ -514,9 +518,10 @@ function renderMorningBriefing(data) {
   );
 
   const firstEvent = data.calendar && data.calendar.length > 0 ? data.calendar[0] : null;
+  const dayWord = data.calendarShowsTomorrow ? "tomorrow" : "today";
   const eventPart = firstEvent
-    ? `First event at ${firstEvent.allDay ? "all day" : formatTime12h(firstEvent.start)}`
-    : "No events today";
+    ? `First event${data.calendarShowsTomorrow ? " tomorrow" : ""} at ${firstEvent.allDay ? "all day" : formatTime12h(firstEvent.start)}`
+    : `No events ${dayWord}`;
   const notifPart = `${data.notifications} notification${data.notifications === 1 ? "" : "s"}`;
   const batteryPart = `Battery ${data.battery}%${data.charging ? " (charging)" : ""}`;
 
@@ -584,7 +589,7 @@ function renderDashboard(data) {
   renderWeather(data.weather);
   renderPhone(data.battery, data.charging);
   renderNotifications(data.notificationGroups);
-  renderSchedule(data.calendar);
+  renderSchedule(data.calendar, data.calendarShowsTomorrow);
   renderAlarm(data.nextAlarm);
   renderSoundMachine(data.soundMachine);
 }

@@ -31,12 +31,6 @@
 const DEFAULT_AURORA_HOST = "192.168.1.130";
 const DEFAULT_AURORA_PORT = 8080;
 
-// Same pattern as WeatherConfig's hardcoded coordinates on the Aurora side:
-// the Morning Briefing needs a name, and that's a pure display concern with
-// no Android-side data behind it, so it lives here rather than as a new
-// Aurora API field.
-const USER_NAME = "Rusty";
-
 const POLL_INTERVAL_MS = 30_000;
 const FETCH_TIMEOUT_MS = 8_000;
 const VOLUME_DEBOUNCE_MS = 400;
@@ -244,7 +238,19 @@ function applyAccentColor(condition) {
 function greetingForHour(hour) {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 21) return "Good evening";
+  return "Good night";
+}
+
+/** Same timezone the clock uses (see currentTimezone below) - so "9pm" in
+ *  the greeting means 9pm wherever the phone actually is, not wherever
+ *  this display's own system clock happens to be set. */
+function currentHourInTimezone(timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hourCycle: "h23" }).formatToParts(
+    new Date()
+  );
+  const raw = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
+  return Number.isNaN(raw) ? new Date().getHours() : raw;
 }
 
 // ---------------------------------------------------------------------------
@@ -495,8 +501,9 @@ function renderSoundMachine(state) {
 }
 
 function renderMorningBriefing(data) {
-  const hour = new Date().getHours();
-  setText("briefing-greeting", `${greetingForHour(hour)}, ${USER_NAME}.`);
+  const hour = currentHourInTimezone(currentTimezone || undefined);
+  const greeting = greetingForHour(hour);
+  setText("briefing-greeting", data.userName ? `${greeting}, ${data.userName}.` : `${greeting}.`);
 
   const weather = data.weather;
   setText(

@@ -6,7 +6,7 @@
 
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
-`node_modules`. It polls [**Aurora**](https://github.com/rustyisacat/Aurora), a
+`node_modules`. It pulls [**Aurora**](https://github.com/rustyisacat/Aurora), a
 companion Android app, over your home Wi-Fi and turns an old smart display
 into a self-hosted phone status board, morning briefing, and bedside sound
 machine.

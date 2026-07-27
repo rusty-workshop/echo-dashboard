@@ -8,78 +8,260 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="dashboard" id="dashboard">
-    <!-- Clock: driven entirely by the device's own local time in script.js,
-         ticks every second - independent of the Aurora poll loop. -->
-    <header class="clock-panel">
-      <div class="clock-time" id="clock-time" aria-live="off">--:--</div>
-      <div class="clock-date">
-        <span class="clock-weekday" id="clock-weekday">-</span>
-        <span class="clock-monthday" id="clock-monthday">-</span>
+  <!--
+    Four swipeable pages via CSS scroll-snap (no JS needed for the swipe
+    itself - the WebView's native touch scrolling handles it, which is
+    both simpler and smoother than a JS-driven carousel). script.js's
+    setupPager() just keeps the dot indicators in sync and lets a dot tap
+    jump to a page.
+
+    Several widgets (clock, battery, weather, notifications, schedule,
+    alarm, sound controls) now appear on two pages - the compact Morning
+    Overview version and a bigger dedicated-page version. Rather than a
+    generic multi-target rendering abstraction, the second instance of
+    each just gets an id with an "-lg" suffix, and the one render
+    function per widget in script.js updates both ids. Four fixed pages
+    is a small, closed set - not worth abstracting over.
+  -->
+  <div class="pager" id="pager">
+    <!-- Page 1: Morning Overview - the original single-page dashboard,
+         unchanged except Notifications now gets more space and Alarm less
+         (see .card-row/.card-notifications/.card-alarm flex-grow in
+         style.css). -->
+    <section class="page page-overview" id="page-overview" aria-label="Morning Overview">
+      <section class="hero-panel">
+        <header class="clock-panel">
+          <div class="clock-time" id="clock-time" aria-live="off">--:--</div>
+          <div class="clock-date">
+            <span class="clock-weekday" id="clock-weekday">-</span>
+            <span class="clock-monthday" id="clock-monthday">-</span>
+          </div>
+        </header>
+
+        <div class="briefing" id="briefing">
+          <p class="briefing-greeting" id="briefing-greeting">Good morning.</p>
+          <p class="briefing-line" id="briefing-weather"></p>
+          <p class="briefing-line" id="briefing-summary"></p>
+        </div>
+
+        <div class="status-line" id="status-line">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="status-text"></span>
+        </div>
+      </section>
+
+      <main class="card-grid">
+        <div class="card-row">
+          <section class="card card-weather" id="card-weather" aria-label="Weather">
+            <h2 class="card-title">Weather</h2>
+            <div class="card-body">
+              <span class="icon-slot" id="weather-icon" aria-hidden="true"></span>
+              <div class="weather-readout">
+                <div class="weather-temp" id="weather-temp">--°</div>
+                <div class="weather-condition" id="weather-condition">No data</div>
+              </div>
+              <div class="weather-range">
+                <span>H <b id="weather-high">--°</b></span>
+                <span>L <b id="weather-low">--°</b></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card card-phone" id="card-phone" aria-label="Phone">
+            <h2 class="card-title">Phone</h2>
+            <div class="card-body">
+              <div class="phone-battery">
+                <span class="icon-slot" id="phone-battery-icon" aria-hidden="true"></span>
+                <span id="phone-battery-level">--%</span>
+              </div>
+              <div class="phone-charging" id="phone-charging">–</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="card-row">
+          <section class="card card-notifications" id="card-notifications" aria-label="Notifications">
+            <h2 class="card-title">
+              <span class="icon-slot small" id="notifications-title-icon" aria-hidden="true"></span>
+              Notifications
+            </h2>
+            <ul class="notif-list" id="notif-list">
+              <li class="notif-empty">All clear</li>
+            </ul>
+          </section>
+
+          <section class="card card-schedule" id="card-schedule" aria-label="Today's Schedule">
+            <h2 class="card-title">
+              <span class="icon-slot small" id="schedule-title-icon" aria-hidden="true"></span>
+              Today's Schedule
+            </h2>
+            <ul class="schedule-list" id="schedule-list">
+              <li class="schedule-empty">No events</li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="card-row">
+          <section class="card card-alarm" id="card-alarm" aria-label="Next Alarm">
+            <h2 class="card-title">
+              <span class="icon-slot small" id="alarm-title-icon" aria-hidden="true"></span>
+              Next Alarm
+            </h2>
+            <div class="card-body">
+              <div class="alarm-time" id="alarm-time">–</div>
+            </div>
+          </section>
+
+          <section class="card card-sound" id="card-sound" aria-label="Sound Machine">
+            <h2 class="card-title">Sound Machine</h2>
+            <div class="card-body">
+              <div class="sound-current">
+                <span class="icon-slot" id="sound-icon" aria-hidden="true"></span>
+                <span id="sound-name" class="sound-name">Off</span>
+                <div class="sound-controls">
+                  <button class="icon-button" id="sound-play-pause" type="button" aria-label="Play">
+                    <span class="icon-slot" id="sound-play-pause-icon" aria-hidden="true"></span>
+                  </button>
+                  <button class="icon-button" id="sound-stop" type="button" aria-label="Stop">
+                    <span class="icon-slot" id="sound-stop-icon" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="sound-row">
+                <span class="icon-slot small" id="volume-icon" aria-hidden="true"></span>
+                <input type="range" id="sound-volume" class="sound-volume" min="0" max="100" value="50" aria-label="Volume" />
+                <span class="sound-volume-label" id="sound-volume-label">50%</span>
+              </div>
+
+              <div class="sound-row">
+                <select class="sound-select" id="sound-picker" aria-label="Choose sound"></select>
+                <select class="sound-select" id="timer-picker" aria-label="Sleep timer">
+                  <option value="off">Timer: Off</option>
+                  <option value="15">Timer: 15m</option>
+                  <option value="30">Timer: 30m</option>
+                  <option value="45">Timer: 45m</option>
+                  <option value="60">Timer: 1h</option>
+                  <option value="120">Timer: 2h</option>
+                  <option value="untilAlarm">Timer: Alarm</option>
+                </select>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </section>
+
+    <!-- Page 2: Phone - a bigger, dedicated battery readout plus the full
+         notifications list with more room to breathe than the compact
+         Morning Overview card. -->
+    <section class="page page-phone" id="page-phone" aria-label="Phone">
+      <div class="page-body-split">
+        <div class="hero-tile">
+          <span class="icon-slot xlarge" id="phone-battery-icon-lg" aria-hidden="true"></span>
+          <div class="hero-value" id="phone-battery-level-lg">--%</div>
+          <div class="hero-caption" id="phone-charging-lg">–</div>
+        </div>
+
+        <section class="panel panel-notifications" aria-label="Notifications">
+          <h2 class="panel-title">
+            <span class="icon-slot small" id="notifications-title-icon-lg" aria-hidden="true"></span>
+            Notifications
+          </h2>
+          <ul class="notif-list notif-list-lg" id="notif-list-lg">
+            <li class="notif-empty">All clear</li>
+          </ul>
+        </section>
       </div>
-    </header>
+    </section>
 
-    <!--
-      Card grid. Each card is a self-contained <section> with its own
-      heading and a handful of elements script.js writes into by id.
-      To add a future card (Wi-Fi, volume mode, morning greeting, quote of
-      the day, smart home controls, ...): add a <section class="card"> here
-      following the same shape, add matching ids, and add one render
-      function in script.js's FUTURE EXPANSION area. No CSS changes should
-      be required - see the comment above .card-grid in style.css.
-    -->
-    <main class="card-grid">
-      <section class="card card-weather" id="card-weather" aria-label="Weather">
-        <h2 class="card-title">Weather</h2>
-        <div class="card-body">
-          <div class="weather-icon" id="weather-icon">–</div>
-          <div class="weather-temp" id="weather-temp">--°</div>
-          <div class="weather-condition" id="weather-condition">No data</div>
-          <div class="weather-range">
-            <span>High <b id="weather-high">--°</b></span>
-            <span>Low <b id="weather-low">--°</b></span>
+    <!-- Page 3: Daily Info - a bigger weather readout plus the full
+         schedule list. -->
+    <section class="page page-daily" id="page-daily" aria-label="Daily Info">
+      <div class="page-body-split">
+        <div class="hero-tile">
+          <span class="icon-slot xlarge" id="weather-icon-lg" aria-hidden="true"></span>
+          <div class="hero-value" id="weather-temp-lg">--°</div>
+          <div class="hero-caption" id="weather-condition-lg">No data</div>
+          <div class="weather-range-lg">
+            <span>H <b id="weather-high-lg">--°</b></span>
+            <span>L <b id="weather-low-lg">--°</b></span>
           </div>
         </div>
-      </section>
 
-      <section class="card card-phone" id="card-phone" aria-label="Phone">
-        <h2 class="card-title">Phone</h2>
-        <div class="card-body">
-          <div class="phone-battery">
-            <span class="phone-icon" id="phone-battery-icon">🔋</span>
-            <span id="phone-battery-level">--%</span>
-          </div>
-          <div class="phone-charging" id="phone-charging">–</div>
-          <div class="phone-notifications">
-            <span class="phone-icon">🔔</span>
-            <span id="phone-notif-count">-- notifications</span>
+        <section class="panel panel-schedule" aria-label="Today's Schedule">
+          <h2 class="panel-title">
+            <span class="icon-slot small" id="schedule-title-icon-lg" aria-hidden="true"></span>
+            Today's Schedule
+          </h2>
+          <ul class="schedule-list schedule-list-lg" id="schedule-list-lg">
+            <li class="schedule-empty">No events</li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <!-- Page 4: Clock, Alarm, Sound Machine - the bedside-facing page.
+         Clock is the most prominent element on the whole dashboard here;
+         Alarm rides along as a small line right under the date (the most
+         natural companion to "what time is it"); Sound Machine gets a
+         bigger version of the same controls from the Overview card, sized
+         for easy, confident taps from bed. -->
+    <section class="page page-clock" id="page-clock" aria-label="Clock and Sound Machine">
+      <header class="clock-page-top">
+        <div class="clock-time-huge" id="clock-time-lg" aria-live="off">--:--</div>
+        <div class="clock-date">
+          <span class="clock-weekday" id="clock-weekday-lg">-</span>
+          <span class="clock-monthday" id="clock-monthday-lg">-</span>
+        </div>
+        <div class="alarm-inline" id="alarm-inline">
+          <span class="icon-slot small" id="alarm-title-icon-lg" aria-hidden="true"></span>
+          <span id="alarm-time-lg">–</span>
+        </div>
+      </header>
+
+      <section class="sound-panel-lg" aria-label="Sound Machine">
+        <div class="sound-current sound-current-lg">
+          <span class="icon-slot" id="sound-icon-lg" aria-hidden="true"></span>
+          <span id="sound-name-lg" class="sound-name">Off</span>
+          <div class="sound-controls">
+            <button class="icon-button icon-button-lg" id="sound-play-pause-lg" type="button" aria-label="Play">
+              <span class="icon-slot" id="sound-play-pause-icon-lg" aria-hidden="true"></span>
+            </button>
+            <button class="icon-button icon-button-lg" id="sound-stop-lg" type="button" aria-label="Stop">
+              <span class="icon-slot" id="sound-stop-icon-lg" aria-hidden="true"></span>
+            </button>
           </div>
         </div>
-      </section>
 
-      <section class="card card-schedule" id="card-schedule" aria-label="Today's Schedule">
-        <h2 class="card-title">Today's Schedule</h2>
-        <ul class="schedule-list" id="schedule-list">
-          <li class="schedule-empty">No events</li>
-        </ul>
-      </section>
+        <div class="sound-row sound-row-lg">
+          <span class="icon-slot small" id="volume-icon-lg" aria-hidden="true"></span>
+          <input type="range" id="sound-volume-lg" class="sound-volume sound-volume-lg" min="0" max="100" value="50" aria-label="Volume" />
+          <span class="sound-volume-label" id="sound-volume-label-lg">50%</span>
+        </div>
 
-      <section class="card card-alarm" id="card-alarm" aria-label="Next Alarm">
-        <h2 class="card-title">Next Alarm</h2>
-        <div class="card-body">
-          <div class="alarm-time" id="alarm-time">–</div>
+        <div class="sound-row sound-row-lg">
+          <select class="sound-select sound-select-lg" id="sound-picker-lg" aria-label="Choose sound"></select>
+          <select class="sound-select sound-select-lg" id="timer-picker-lg" aria-label="Sleep timer">
+            <option value="off">Timer: Off</option>
+            <option value="15">Timer: 15m</option>
+            <option value="30">Timer: 30m</option>
+            <option value="45">Timer: 45m</option>
+            <option value="60">Timer: 1h</option>
+            <option value="120">Timer: 2h</option>
+            <option value="untilAlarm">Timer: Alarm</option>
+          </select>
         </div>
       </section>
-    </main>
-
-    <!-- Deliberately subtle - a premium display shouldn't shout about
-         connectivity. Empty/invisible while everything is fresh; script.js
-         fills it in and fades it up only once data starts going stale. -->
-    <div class="connection-status" id="connection-status" aria-live="polite">
-      <span class="dot" aria-hidden="true"></span>
-      <span id="connection-text"></span>
-    </div>
+    </section>
   </div>
+
+  <nav class="page-dots" id="page-dots" aria-label="Dashboard pages">
+    <button class="page-dot" data-page="0" aria-label="Morning Overview"></button>
+    <button class="page-dot" data-page="1" aria-label="Phone"></button>
+    <button class="page-dot" data-page="2" aria-label="Daily Info"></button>
+    <button class="page-dot" data-page="3" aria-label="Clock and Sound Machine"></button>
+  </nav>
 
   <script src="script.js"></script>
 </body>

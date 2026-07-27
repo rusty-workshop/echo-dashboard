@@ -3,6 +3,10 @@
    Primary target: Amazon Echo Show 5 (1st gen), 960x480 landscape, kiosk
    Chrome/WebView. Sizing uses clamp()/vw/vh throughout instead of fixed
    pixel values so the same layout scales sensibly on other screens too.
+
+   Layout insight: the panel is wide (2:1), not tall - a two-column
+   hero+cards layout uses that far better than stacking everything
+   vertically into 480px of height. See .dashboard below.
    ========================================================================== */
 
 :root {
@@ -17,14 +21,42 @@
   --text-secondary: #9a9a9a;
   --text-tertiary: #6b6b6b;
 
-  --accent: #6fc3ff;       /* clock weekday, schedule times - "live" data */
-  --accent-warm: #ffb74d;  /* reconnecting state */
-  --accent-danger: #ff6b6b; /* offline state */
+  /* Dynamic accent, set by script.js from the current weather condition:
+     warm for clear skies, gray for cloud, blue for rain/snow/storms.
+     This default is the "gray" tone, shown until the first successful
+     weather fetch. */
+  --accent: #9aa5b1;
+  --accent-warm: #ffb74d;
+  --accent-gray: #9aa5b1;
+  --accent-blue: #5b9bf0;
+
+  --accent-reconnecting: #ffb74d;
+  --accent-danger: #ff6b6b;
 
   --divider: rgba(255, 255, 255, 0.08);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
 
   --radius-lg: 1.25rem;
+  --radius-md: 0.85rem;
+
+  /* A restrained type scale (v1.1: "better typography") instead of ad-hoc
+     clamp() per element - each size below is used for exactly one job. */
+  --fs-clock: clamp(2.1rem, 8.5vw, 3.4rem);
+  --fs-clock-huge: clamp(3.2rem, 15vw, 6rem);
+  --fs-greeting: clamp(1.25rem, 2.6vw, 1.7rem);
+  --fs-briefing: clamp(0.92rem, 1.7vw, 1.1rem);
+  --fs-display: clamp(1.4rem, 2.8vw, 2rem);
+  --fs-hero: clamp(2.6rem, 8vw, 4.2rem);
+  --fs-title: clamp(0.72rem, 1.3vw, 0.85rem);
+  --fs-body: clamp(0.8rem, 1.5vw, 0.95rem);
+  --fs-body-lg: clamp(0.95rem, 1.9vw, 1.2rem);
+  --fs-caption: clamp(0.68rem, 1.2vw, 0.8rem);
+  --fs-caption-lg: clamp(0.8rem, 1.5vw, 1rem);
+
+  --page-padding: clamp(0.75rem, 2.2vw, 1.75rem);
+
+  --transition-color: 500ms ease;
+  --transition-fast: 200ms ease;
 
   /* System font stack, not a webfont: the Echo Show may have no internet
      route to Aurora (let alone a font CDN) for long stretches, and this
@@ -56,21 +88,67 @@ body {
   color: var(--text-primary);
   -webkit-user-select: none;
   user-select: none; /* this is a display, not a document */
-  cursor: none; /* touch kiosk with no mouse - see design goals */
 }
 
-/* ---- Overall layout ------------------------------------------------------
-   Two rows: the clock takes its natural height, the card grid fills
-   whatever is left. Fluid gap/padding keeps this from feeling cramped on
-   960x480 or wasteful on a larger display. */
+button,
+select,
+input {
+  font-family: inherit;
+}
 
-.dashboard {
+/* ---- Pager ----------------------------------------------------------------
+   Four full-screen pages, swiped through horizontally via native touch
+   scrolling + CSS scroll-snap - no JS carousel logic needed for the swipe
+   itself. script.js's setupPager() only keeps the dot indicators in sync
+   and lets a dot tap jump to a page. touch-action: pan-x so the browser
+   commits to horizontal paging gestures here (individual controls that
+   need their own horizontal drag, like the volume slider, override this
+   with touch-action: none - see .sound-volume). */
+
+.pager {
   height: 100vh;
   width: 100vw;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none; /* Firefox - kiosk display, a scrollbar is never wanted */
+}
+
+.pager::-webkit-scrollbar {
+  display: none; /* Chromium/WebView */
+}
+
+.page {
+  flex: none;
+  width: 100vw;
+  height: 100vh;
+  scroll-snap-align: start;
+  padding: var(--page-padding);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ---- Page 1: Morning Overview ---------------------------------------------
+   Two columns: a hero panel (clock + Morning Briefing) and the card grid.
+   The hero panel gets a comfortable fixed-ish share of the width; the
+   grid takes the rest. Falls back to a stacked single column below
+   for other screen shapes - see Responsive section. */
+
+.page-overview {
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: clamp(0.6rem, 1.8vh, 1.25rem);
-  padding: clamp(0.75rem, 2.2vw, 1.75rem);
+  grid-template-columns: minmax(260px, 38%) 1fr;
+  grid-template-rows: 1fr; /* the single implicit row must stretch, or it collapses to content height */
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.hero-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 0;
 }
 
 .clock-panel {
@@ -81,7 +159,7 @@ body {
 }
 
 .clock-time {
-  font-size: clamp(2.75rem, 11vw, 5.5rem);
+  font-size: var(--fs-clock);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -91,7 +169,7 @@ body {
 .clock-date {
   display: flex;
   gap: 0.6em;
-  font-size: clamp(1rem, 2.2vw, 1.4rem);
+  font-size: clamp(0.9rem, 1.8vw, 1.15rem);
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -99,79 +177,241 @@ body {
 .clock-weekday {
   color: var(--accent);
   font-weight: 600;
+  transition: color var(--transition-color);
+}
+
+/* ---- Morning Briefing ------------------------------------------------------
+   Composed client-side from data already on /dashboard - no backend
+   change needed. Deliberately condensed to 3 short lines rather than a
+   longer paragraph: "one glance and you know your day" is best served by
+   less text, not more, on a display meant to be read from across a room. */
+
+.briefing {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.35rem, 1vh, 0.55rem);
+  padding-right: clamp(0.5rem, 1.5vw, 1rem);
+}
+
+.briefing-greeting {
+  margin: 0;
+  font-size: var(--fs-greeting);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.briefing-line {
+  margin: 0;
+  font-size: var(--fs-briefing);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.briefing-line b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ---- Status line -----------------------------------------------------------
+   Always present but quiet - "Updated 12s ago" in a muted tone while
+   healthy. Grows a touch more insistent (color only, no layout change)
+   once data goes stale, but never shouts. */
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+  transition: color var(--transition-color);
+}
+
+.status-line .dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.status-line.state-reconnecting {
+  color: var(--accent-reconnecting);
+}
+
+.status-line.state-offline {
+  color: var(--accent-danger);
 }
 
 /* ---- Card grid -----------------------------------------------------------
-   Four columns fits the four v1.0 cards in one row on a 960px-wide kiosk
-   screen. Adding a future card (see index.html's comment) just means
-   adding a fifth <section class="card"> - drop to 3 columns / two rows
-   here, or switch to auto-fit, if the grid ever needs to grow past what
-   comfortably fits in one row. */
+   Three explicit .card-row wrappers (2 cards each), laid out with flexbox
+   rather than CSS Grid. Grid's 1fr row-track sizing (grid-template-rows:
+   repeat(3, 1fr) inside a grid-in-grid layout) verified correct in desktop
+   Chrome but rendered only 2 of 6 cards on the Echo Show's actual WebView -
+   flexbox's height distribution has much more consistent cross-WebView
+   support. Adding a 7th/8th card means adding a new .card-row in
+   index.html, since flexbox has no auto-wrap equivalent to grid's
+   auto-flow. */
 
 .card-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: clamp(0.6rem, 1.6vw, 1.25rem);
-  min-height: 0; /* let cards shrink instead of overflowing the viewport */
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.5rem, 1.4vw, 1rem);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.card-row {
+  display: flex;
+  flex: 1;
+  gap: clamp(0.5rem, 1.4vw, 1rem);
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Row 2 (Notifications + Schedule) and row 3 (Alarm + Sound Machine) both
+   get a larger share of height than row 1: Notifications now has its own
+   full dedicated page (Phone, page 2), but still deserves more room here
+   than a single-line summary - and the Sound Machine card has more
+   controls to fit (current sound + transport buttons, volume, two
+   selects) than any other card. Alarm's own content is minimal - it gets
+   a smaller column share below - so both rows can afford the extra
+   height without starving Schedule or Alarm. */
+.card-row:nth-child(2) {
+  flex: 1.25;
+}
+.card-row:nth-child(3) {
+  flex: 1.4;
 }
 
 .card {
+  flex: 1;
   background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  padding: clamp(0.85rem, 2vh, 1.4rem) clamp(0.9rem, 1.8vw, 1.4rem);
+  padding: clamp(0.7rem, 1.6vh, 1.1rem) clamp(0.8rem, 1.6vw, 1.2rem);
   display: flex;
   flex-direction: column;
-  gap: clamp(0.4rem, 1.2vh, 0.75rem);
-  min-width: 0;  /* required for text-overflow: ellipsis inside a grid item */
+  gap: clamp(0.3rem, 1vh, 0.55rem);
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   animation: card-fade-in 480ms ease-out backwards;
+  transition: box-shadow var(--transition-fast);
 }
 
-.card:nth-child(1) { animation-delay: 0ms; }
-.card:nth-child(2) { animation-delay: 60ms; }
-.card:nth-child(3) { animation-delay: 120ms; }
-.card:nth-child(4) { animation-delay: 180ms; }
+/* Within their rows, Notifications gets more width than Schedule, and
+   Alarm gets less width than Sound Machine (see index.html comment: Alarm
+   moved most of its "screen time" to page 4, and Notifications' compact
+   card should show more than one or two items at a glance now that
+   there's no separate expand affordance on this page). Comes after the
+   base .card rule so these override its flex: 1 at equal specificity. */
+.card-notifications {
+  flex: 1.6;
+}
+.card-schedule {
+  flex: 1;
+}
+.card-alarm {
+  flex: 0.6;
+}
+.card-sound {
+  flex: 1.4;
+}
+
+.card-row:nth-child(1) .card:nth-child(1) { animation-delay: 0ms; }
+.card-row:nth-child(1) .card:nth-child(2) { animation-delay: 40ms; }
+.card-row:nth-child(2) .card:nth-child(1) { animation-delay: 80ms; }
+.card-row:nth-child(2) .card:nth-child(2) { animation-delay: 120ms; }
+.card-row:nth-child(3) .card:nth-child(1) { animation-delay: 160ms; }
+.card-row:nth-child(3) .card:nth-child(2) { animation-delay: 200ms; }
 
 .card-title {
   margin: 0;
-  font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: var(--fs-title);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-secondary);
 }
 
+.card-title .icon-slot {
+  color: var(--text-secondary);
+}
+
 .card-body {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.2rem, 0.8vh, 0.4rem);
+  gap: clamp(0.15rem, 0.6vh, 0.3rem);
+  min-height: 0;
+}
+
+/* ---- Icons -----------------------------------------------------------------
+   Inline Material-style SVGs (script.js), sized via this wrapper so every
+   icon - weather, battery, bell, calendar, alarm, speaker, transport
+   controls - shares one consistent footprint and inherits color (and so
+   the weather-driven accent color) via currentColor. No icon font/CDN:
+   keeps the dashboard fully self-contained and offline-safe. */
+
+.icon-slot {
+  display: inline-flex;
+  width: clamp(1.4rem, 2.6vw, 1.9rem);
+  height: clamp(1.4rem, 2.6vw, 1.9rem);
+  color: var(--accent);
+  flex: none;
+  transition: color var(--transition-color);
+}
+
+.icon-slot svg {
+  width: 100%;
+  height: 100%;
+}
+
+.icon-slot.small {
+  width: clamp(1rem, 1.8vw, 1.3rem);
+  height: clamp(1rem, 1.8vw, 1.3rem);
+  color: var(--text-secondary);
 }
 
 /* ---- Weather card -------------------------------------------------------- */
 
-.weather-icon {
-  font-size: clamp(1.6rem, 4vw, 2.4rem);
-  line-height: 1;
+.card-weather .card-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: clamp(0.5rem, 1.2vw, 0.85rem);
+  row-gap: 0.2rem;
+}
+
+.card-weather .icon-slot {
+  grid-row: span 2;
+}
+
+.weather-readout {
+  display: flex;
+  flex-direction: column;
 }
 
 .weather-temp {
-  font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+  font-size: var(--fs-display);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
 .weather-condition {
+  font-size: var(--fs-caption);
   color: var(--text-secondary);
-  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
 }
 
 .weather-range {
+  grid-column: 1 / -1;
   display: flex;
-  gap: 1.2em;
-  margin-top: 0.15rem;
-  font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+  gap: 1.1em;
+  font-size: var(--fs-caption);
   color: var(--text-secondary);
 }
 
@@ -186,27 +426,55 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5em;
-  font-size: clamp(1.3rem, 3vw, 1.9rem);
+  font-size: var(--fs-display);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.phone-icon {
-  font-size: 0.85em;
-}
-
 .phone-charging {
-  font-size: clamp(0.8rem, 1.6vw, 1rem);
+  font-size: var(--fs-caption);
   color: var(--text-secondary);
 }
 
-.phone-notifications {
+/* ---- Notifications card (grouped by app) ----------------------------------- */
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: clamp(0.2rem, 0.7vh, 0.4rem);
+  overflow: hidden;
+}
+
+.notif-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 0.5em;
-  margin-top: 0.2rem;
-  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
-  color: var(--text-secondary);
+  font-size: var(--fs-body);
+}
+
+.notif-app {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.notif-count {
+  flex: none;
+  color: var(--accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--transition-color);
+}
+
+.notif-empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+  font-size: var(--fs-body);
 }
 
 /* ---- Today's Schedule card ------------------------------------------------ */
@@ -217,7 +485,7 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(0.35rem, 1vh, 0.6rem);
+  gap: clamp(0.25rem, 0.8vh, 0.45rem);
   overflow: hidden;
 }
 
@@ -225,15 +493,16 @@ body {
   display: flex;
   gap: 0.6em;
   align-items: baseline;
-  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+  font-size: var(--fs-body);
 }
 
 .schedule-time {
   flex: none;
-  min-width: 4.4em;
+  min-width: 4.2em;
   color: var(--accent);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  transition: color var(--transition-color);
 }
 
 .schedule-title {
@@ -245,56 +514,378 @@ body {
 .schedule-empty {
   color: var(--text-tertiary);
   font-style: italic;
+  font-size: var(--fs-body);
 }
 
 /* ---- Next Alarm card ------------------------------------------------------- */
 
+.card-alarm .card-body {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 1.2vw, 0.85rem);
+}
+
 .alarm-time {
-  font-size: clamp(1.8rem, 4.2vw, 2.6rem);
+  font-size: var(--fs-display);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Connection status ------------------------------------------------------
-   Deliberately understated - invisible while data is fresh, fading in
-   only once Aurora has been unreachable for a while. A premium display
-   shouldn't nag about connectivity; it should just keep showing the last
-   good data (see script.js) and mention it quietly. */
+/* ---- Sound Machine card ----------------------------------------------------
+   The one card with real controls - touch is genuinely required here,
+   unlike the rest of the dashboard. */
 
-.connection-status {
-  position: fixed;
-  right: clamp(0.75rem, 2vw, 1.5rem);
-  bottom: clamp(0.6rem, 1.8vh, 1.25rem);
+.sound-current {
   display: flex;
   align-items: center;
-  gap: 0.45em;
-  font-size: clamp(0.7rem, 1.3vw, 0.85rem);
-  color: var(--text-tertiary);
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 400ms ease, transform 400ms ease, color 400ms ease;
-  pointer-events: none;
+  gap: 0.5em;
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 
-.connection-status.visible {
-  opacity: 1;
-  transform: translateY(0);
+.sound-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.connection-status .dot {
-  width: 0.5em;
-  height: 0.5em;
+.sound-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.sound-volume {
+  flex: 1;
+  min-width: 0;
+  height: 1.3em;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  /* Without this, a horizontal drag on the thumb is ambiguous with the
+     .pager's own horizontal swipe-to-change-page gesture on the same
+     axis - touch-action: none hands the whole gesture to the slider. */
+  touch-action: none;
+}
+
+.sound-volume::-webkit-slider-runnable-track {
+  height: 0.35em;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+}
+
+.sound-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1em;
+  height: 1em;
+  margin-top: -0.33em;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--accent);
+  border: none;
+  transition: background var(--transition-color);
+}
+
+.sound-volume::-moz-range-track {
+  height: 0.35em;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+}
+
+.sound-volume::-moz-range-thumb {
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  transition: background var(--transition-color);
+}
+
+.sound-volume-label {
   flex: none;
+  min-width: 2.6em;
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.connection-status.state-reconnecting {
-  color: var(--accent-warm);
+.sound-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  padding: 0.35em 0.5em;
+  font-size: var(--fs-caption);
+  text-overflow: ellipsis;
 }
 
-.connection-status.state-offline {
-  color: var(--accent-danger);
+.sound-controls {
+  display: flex;
+  flex: none;
+  gap: 0.5em;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(2.2rem, 4vw, 2.8rem);
+  height: clamp(2.2rem, 4vw, 2.8rem);
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-elevated);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-color), transform var(--transition-fast);
+}
+
+.icon-button:active {
+  transform: scale(0.92);
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.icon-button .icon-slot {
+  width: 55%;
+  height: 55%;
+  color: inherit;
+}
+
+.icon-slot.xlarge {
+  width: clamp(2.4rem, 6vw, 3.6rem);
+  height: clamp(2.4rem, 6vw, 3.6rem);
+}
+
+/* ---- Pages 2 & 3: Phone / Daily Info ---------------------------------------
+   Both share the same shape: a big glanceable "hero" readout on the left
+   (battery % or temperature) and a full-height list panel on the right
+   (notifications or schedule) with more room than their compact Morning
+   Overview counterparts. */
+
+.page-body-split {
+  height: 100%;
+  display: flex;
+  gap: clamp(1rem, 3vw, 2rem);
+}
+
+.hero-tile {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(0.3rem, 1vh, 0.6rem);
+}
+
+.hero-value {
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-caption {
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+.weather-range-lg {
+  display: flex;
+  gap: 1.2em;
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+.weather-range-lg b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.panel {
+  flex: 1.3;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.5rem, 1.5vh, 0.85rem);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: clamp(1rem, 2.2vh, 1.5rem) clamp(1.1rem, 2.2vw, 1.6rem);
+  overflow: hidden;
+}
+
+.panel-title {
+  margin: 0;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.notif-list-lg,
+.schedule-list-lg {
+  flex: 1;
+  min-height: 0;
+  gap: clamp(0.5rem, 1.6vh, 0.9rem);
+}
+
+.notif-list-lg .notif-item,
+.notif-list-lg .notif-empty,
+.schedule-list-lg .schedule-item,
+.schedule-list-lg .schedule-empty {
+  font-size: var(--fs-body-lg);
+}
+
+.schedule-list-lg .schedule-time {
+  min-width: 5em;
+}
+
+/* ---- Page 4: Clock, Alarm, Sound Machine -----------------------------------
+   The bedside page: clock is the single most prominent element on the
+   entire dashboard, Alarm rides along underneath as a small companion
+   line, and Sound Machine gets a bigger version of the Overview card's
+   controls - same layout, larger touch targets - filling the rest of the
+   page. */
+
+.page-clock {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 2vh, 1.25rem);
+}
+
+.clock-page-top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(0.15rem, 0.8vh, 0.35rem);
+}
+
+.clock-time-huge {
+  font-size: var(--fs-clock-huge);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.alarm-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: 0.2rem;
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+.sound-panel-lg {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.6rem, 2vh, 1.1rem);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: clamp(1rem, 2.5vh, 1.75rem) clamp(1.2rem, 3vw, 2rem);
+}
+
+.sound-current-lg {
+  font-size: var(--fs-body-lg);
+}
+
+.sound-row-lg {
+  gap: 0.7em;
+}
+
+.sound-volume-lg {
+  height: 1.6em;
+}
+
+.sound-volume-lg::-webkit-slider-runnable-track {
+  height: 0.45em;
+}
+
+.sound-volume-lg::-webkit-slider-thumb {
+  width: 1.3em;
+  height: 1.3em;
+  margin-top: -0.43em;
+}
+
+.sound-volume-lg::-moz-range-track {
+  height: 0.45em;
+}
+
+.sound-volume-lg::-moz-range-thumb {
+  width: 1.3em;
+  height: 1.3em;
+}
+
+.sound-select-lg {
+  font-size: var(--fs-caption-lg);
+  padding: 0.5em 0.7em;
+}
+
+.icon-button-lg {
+  width: clamp(3.2rem, 7vw, 4.2rem);
+  height: clamp(3.2rem, 7vw, 4.2rem);
+}
+
+/* ---- Page dots --------------------------------------------------------------
+   Small, low-contrast, fixed at the bottom center over whichever page is
+   showing - a quiet reminder that this is swipeable, and a tap target for
+   jumping to a page without swiping. Deliberately subtle: a bedside
+   display shouldn't have loud UI chrome sitting on top of the clock or
+   the sound controls. */
+
+.page-dots {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(0.3rem, 1vh, 0.5rem);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.page-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  padding: 0.4rem;
+  margin: -0.4rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.page-dot::before {
+  content: "";
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.page-dot.active::before {
+  background: var(--accent);
+  transform: scale(1.3);
 }
 
 /* ---- Animations ------------------------------------------------------------ */
@@ -337,28 +928,58 @@ body {
 
 /* ---- Responsive fallbacks ----------------------------------------------------
    The 960x480 kiosk is the primary target, but this should still hold up
-   in a normal browser window or a taller/narrower panel. */
+   in a normal browser window or a taller/narrower panel.
 
-@media (max-width: 760px), (max-aspect-ratio: 4/3) {
-  .card-grid {
-    grid-template-columns: repeat(2, 1fr);
+   Threshold note: the Echo Show's kiosk browser applies its own ~0.82x
+   page scale, so its *effective* CSS viewport is roughly 787x393, not the
+   physical 960x480 - measured directly via the WebView's remote-debugging
+   protocol. An earlier 820px breakpoint here was wider than that effective
+   viewport, so this "narrow screen" fallback was silently activating on
+   the primary target device itself, collapsing .card-row's flex:1 to
+   flex:none and pushing the third card row off-screen. 600px stays safely
+   under 787px while still catching genuinely narrow/portrait displays. */
+
+@media (max-width: 600px), (max-aspect-ratio: 4/3) {
+  .page {
+    height: auto;
+    min-height: 100vh;
   }
-}
 
-@media (max-width: 420px) {
-  .card-grid {
+  .page-overview {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
 
-  /* Genuinely cramped (e.g. a phone in portrait) - allow scrolling rather
-     than crushing every card down to be unreadable. */
+  .hero-panel {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .card-grid {
+    height: auto;
+  }
+
+  .card-row {
+    flex: none;
+  }
+
+  .page-body-split {
+    height: auto;
+    flex-direction: column;
+  }
+
+  .panel {
+    flex: none;
+  }
+
   html,
   body {
     overflow: auto;
   }
+}
 
-  .dashboard {
-    height: auto;
-    min-height: 100vh;
+@media (max-width: 480px) {
+  .card-row {
+    flex-direction: column;
   }
 }

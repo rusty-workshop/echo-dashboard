@@ -49,8 +49,35 @@ const OFFLINE_AFTER_FAILURES = 3;
 // missing a newer field (e.g. soundMachine) would otherwise crash the
 // renderer that expects it. A version bump just invalidates the old entry
 // instead of trying to migrate it.
-const CACHE_KEY = "aurora-dashboard:last-good-response:v2";
+const CACHE_KEY = "aurora-dashboard:last-good-response:v3";
 const HOST_OVERRIDE_KEY = "aurora-dashboard:host-override";
+
+// ---------------------------------------------------------------------------
+// Morning Overview tile layout - customizable from the Aurora phone app
+// (order, visibility, size). Falls back to this same arrangement until the
+// first successful /dashboard response arrives (or forever, if the phone
+// app has never touched it - see LayoutRepository on the Aurora side).
+// ---------------------------------------------------------------------------
+
+const TILE_DOM_ID = {
+  weather: "card-weather",
+  phone: "card-phone",
+  notifications: "card-notifications",
+  schedule: "card-schedule",
+  alarm: "card-alarm",
+  sound: "card-sound",
+};
+
+const TILE_SIZE_WEIGHT = { small: 0.7, medium: 1, large: 1.5 };
+
+const DEFAULT_TILE_LAYOUT = [
+  { id: "weather", visible: true, size: "medium" },
+  { id: "phone", visible: true, size: "medium" },
+  { id: "notifications", visible: true, size: "large" },
+  { id: "schedule", visible: true, size: "medium" },
+  { id: "alarm", visible: true, size: "small" },
+  { id: "sound", visible: true, size: "large" },
+];
 
 // ---------------------------------------------------------------------------
 // Aurora host resolution
@@ -464,7 +491,63 @@ function renderMorningBriefing(data) {
   setText("briefing-summary", `${eventPart} · ${notifPart} · ${batteryPart}`);
 }
 
+let lastAppliedLayoutJson = null;
+
+/**
+ * Rebuilds the Morning Overview's .card-row wrappers from a layout config:
+ * groups visible tiles two per row in the given order, and sets each
+ * row's/card's flex-grow from TILE_SIZE_WEIGHT. The <section class="card">
+ * elements are moved, not cloned or recreated, so this never touches their
+ * ids, listeners, or already-rendered content - only where they sit in the
+ * grid. A hidden tile is simply left unattached; the render functions
+ * below (e.g. renderNotifications) then safely no-op on it via their
+ * existing "element not found" guards, no special-casing needed.
+ *
+ * Skips the rebuild entirely if the layout is unchanged since last call,
+ * so a routine 30s poll doesn't replay the card-fade-in animation or touch
+ * the DOM for no reason.
+ */
+function applyTileLayout(tiles) {
+  const grid = document.querySelector(".card-grid");
+  if (!grid) return;
+
+  const layoutJson = JSON.stringify(tiles);
+  if (layoutJson === lastAppliedLayoutJson) return;
+  lastAppliedLayoutJson = layoutJson;
+
+  // Grab references to the actual card elements before clearing the grid -
+  // grid.innerHTML = "" below only destroys the throwaway .card-row
+  // wrapper divs; these already-referenced card nodes get moved back in
+  // below, not lost, since appendChild reattaches an existing node rather
+  // than requiring a fresh one.
+  const cardElements = {};
+  for (const tileId of Object.keys(TILE_DOM_ID)) {
+    const el = byId(TILE_DOM_ID[tileId]);
+    if (el) cardElements[tileId] = el;
+  }
+
+  grid.innerHTML = "";
+
+  const visibleTiles = tiles.filter((tile) => tile.visible && cardElements[tile.id]);
+  for (let i = 0; i < visibleTiles.length; i += 2) {
+    const rowTiles = visibleTiles.slice(i, i + 2);
+    const row = document.createElement("div");
+    row.className = "card-row";
+    row.style.flexGrow = String(Math.max(...rowTiles.map((tile) => TILE_SIZE_WEIGHT[tile.size] ?? 1)));
+
+    rowTiles.forEach((tile, indexInRow) => {
+      const card = cardElements[tile.id];
+      card.style.flexGrow = String(TILE_SIZE_WEIGHT[tile.size] ?? 1);
+      card.style.animationDelay = `${(i + indexInRow) * 40}ms`;
+      row.appendChild(card);
+    });
+
+    grid.appendChild(row);
+  }
+}
+
 function renderDashboard(data) {
+  applyTileLayout(data.layout && data.layout.length > 0 ? data.layout : DEFAULT_TILE_LAYOUT);
   renderMorningBriefing(data);
   renderWeather(data.weather);
   renderPhone(data.battery, data.charging);
@@ -967,6 +1050,14 @@ function setupPager() {
 // ---------------------------------------------------------------------------
 
 function init() {
+  // Lays out the card grid immediately, before any cached or live data
+  // exists - without this, the six cards would render as one plain
+  // full-width column (their static markup has no .card-row wrappers any
+  // more; those are only built by applyTileLayout) for a brief moment on
+  // first paint, or indefinitely on a fresh install with Aurora
+  // unreachable and no cache yet.
+  applyTileLayout(DEFAULT_TILE_LAYOUT);
+
   const cached = loadCache();
   if (cached) {
     renderDashboard(cached.data);

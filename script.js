@@ -251,35 +251,57 @@ function greetingForHour(hour) {
 // Clock - independent of the Aurora poll loop, ticks every second. Also
 // refreshes the status line's relative "Updated Xs ago" text on the same
 // tick, since that needs to advance even between polls.
+//
+// Follows wherever Aurora's phone actually is, not just whatever system
+// timezone this display happens to be set to: Open-Meteo resolves an IANA
+// timezone (e.g. "America/New_York") for whatever coordinate the weather
+// request used, Aurora passes it through on WeatherSnapshot, and
+// renderWeather() below stores it in currentTimezone. Until the first
+// successful weather fetch, currentTimezone is null and Intl.DateTimeFormat
+// falls back to this device's own system timezone - the same behavior the
+// clock always had before this existed.
 // ---------------------------------------------------------------------------
 
-const WEEKDAY_NAMES = [
-  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
-];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+let currentTimezone = null;
+
+function clockTimeParts(now, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(now);
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? "";
+  return { hour: get("hour"), minute: get("minute"), period: get("dayPeriod") };
+}
+
+function clockDateParts(now, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).formatToParts(now);
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? "";
+  return { weekday: get("weekday"), month: get("month"), day: get("day") };
+}
 
 function updateClock() {
   const now = new Date();
+  const timeZone = currentTimezone || undefined; // undefined = Intl's own "use system default"
 
-  let hour = now.getHours();
-  const period = hour >= 12 ? "PM" : "AM";
-  hour = hour % 12;
-  if (hour === 0) hour = 12;
-  const minute = String(now.getMinutes()).padStart(2, "0");
+  const { hour, minute, period } = clockTimeParts(now, timeZone);
+  const { weekday, month, day } = clockDateParts(now, timeZone);
   const timeText = `${hour}:${minute} ${period}`;
-  const weekdayText = WEEKDAY_NAMES[now.getDay()];
-  const monthdayText = `${MONTH_NAMES[now.getMonth()]} ${now.getDate()}`;
+  const monthdayText = `${month} ${day}`;
 
   // The clock appears twice - compact on the Morning Overview page, huge
   // on the dedicated Clock/Sound page - so both ids get every tick.
   setText("clock-time", timeText);
-  setText("clock-weekday", weekdayText);
+  setText("clock-weekday", weekday);
   setText("clock-monthday", monthdayText);
   setText("clock-time-lg", timeText);
-  setText("clock-weekday-lg", weekdayText);
+  setText("clock-weekday-lg", weekday);
   setText("clock-monthday-lg", monthdayText);
 
   updateStatusLine();
@@ -330,6 +352,9 @@ function renderWeather(weather) {
   setText("weather-low-lg", low);
 
   applyAccentColor(weather.condition);
+
+  // Drives the clock's timezone too - see the comment above updateClock().
+  if (weather.timezone) currentTimezone = weather.timezone;
 }
 
 function renderPhone(battery, charging) {

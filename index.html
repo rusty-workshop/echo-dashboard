@@ -50,105 +50,107 @@
         </div>
       </section>
 
+      <!--
+        The six cards below are direct children of .card-grid, not wrapped
+        in .card-row divs - script.js's applyTileLayout() builds the row
+        wrappers dynamically at runtime (grouping visible tiles two per
+        row, in the order/sizes Aurora reports in /dashboard's "layout"
+        field), since that's now customizable from the phone app rather
+        than fixed. See TILE_DOM_ID/TILE_SIZE_WEIGHT in script.js.
+      -->
       <main class="card-grid">
-        <div class="card-row">
-          <section class="card card-weather" id="card-weather" aria-label="Weather">
-            <h2 class="card-title">Weather</h2>
-            <div class="card-body">
-              <span class="icon-slot" id="weather-icon" aria-hidden="true"></span>
-              <div class="weather-readout">
-                <div class="weather-temp" id="weather-temp">--°</div>
-                <div class="weather-condition" id="weather-condition">No data</div>
-              </div>
-              <div class="weather-range">
-                <span>H <b id="weather-high">--°</b></span>
-                <span>L <b id="weather-low">--°</b></span>
+        <section class="card card-weather" id="card-weather" aria-label="Weather">
+          <h2 class="card-title">Weather</h2>
+          <div class="card-body">
+            <span class="icon-slot" id="weather-icon" aria-hidden="true"></span>
+            <div class="weather-readout">
+              <div class="weather-temp" id="weather-temp">--°</div>
+              <div class="weather-condition" id="weather-condition">No data</div>
+            </div>
+            <div class="weather-range">
+              <span>H <b id="weather-high">--°</b></span>
+              <span>L <b id="weather-low">--°</b></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card card-phone" id="card-phone" aria-label="Phone">
+          <h2 class="card-title">Phone</h2>
+          <div class="card-body">
+            <div class="phone-battery">
+              <span class="icon-slot" id="phone-battery-icon" aria-hidden="true"></span>
+              <span id="phone-battery-level">--%</span>
+            </div>
+            <div class="phone-charging" id="phone-charging">–</div>
+          </div>
+        </section>
+
+        <section class="card card-notifications" id="card-notifications" aria-label="Notifications">
+          <h2 class="card-title">
+            <span class="icon-slot small" id="notifications-title-icon" aria-hidden="true"></span>
+            Notifications
+          </h2>
+          <ul class="notif-list" id="notif-list">
+            <li class="notif-empty">All clear</li>
+          </ul>
+        </section>
+
+        <section class="card card-schedule" id="card-schedule" aria-label="Today's Schedule">
+          <h2 class="card-title">
+            <span class="icon-slot small" id="schedule-title-icon" aria-hidden="true"></span>
+            Today's Schedule
+          </h2>
+          <ul class="schedule-list" id="schedule-list">
+            <li class="schedule-empty">No events</li>
+          </ul>
+        </section>
+
+        <section class="card card-alarm" id="card-alarm" aria-label="Next Alarm">
+          <h2 class="card-title">
+            <span class="icon-slot small" id="alarm-title-icon" aria-hidden="true"></span>
+            Next Alarm
+          </h2>
+          <div class="card-body">
+            <div class="alarm-time" id="alarm-time">–</div>
+          </div>
+        </section>
+
+        <section class="card card-sound" id="card-sound" aria-label="Sound Machine">
+          <h2 class="card-title">Sound Machine</h2>
+          <div class="card-body">
+            <div class="sound-current">
+              <span class="icon-slot" id="sound-icon" aria-hidden="true"></span>
+              <span id="sound-name" class="sound-name">Off</span>
+              <div class="sound-controls">
+                <button class="icon-button" id="sound-play-pause" type="button" aria-label="Play">
+                  <span class="icon-slot" id="sound-play-pause-icon" aria-hidden="true"></span>
+                </button>
+                <button class="icon-button" id="sound-stop" type="button" aria-label="Stop">
+                  <span class="icon-slot" id="sound-stop-icon" aria-hidden="true"></span>
+                </button>
               </div>
             </div>
-          </section>
 
-          <section class="card card-phone" id="card-phone" aria-label="Phone">
-            <h2 class="card-title">Phone</h2>
-            <div class="card-body">
-              <div class="phone-battery">
-                <span class="icon-slot" id="phone-battery-icon" aria-hidden="true"></span>
-                <span id="phone-battery-level">--%</span>
-              </div>
-              <div class="phone-charging" id="phone-charging">–</div>
+            <div class="sound-row">
+              <span class="icon-slot small" id="volume-icon" aria-hidden="true"></span>
+              <input type="range" id="sound-volume" class="sound-volume" min="0" max="100" value="50" aria-label="Volume" />
+              <span class="sound-volume-label" id="sound-volume-label">50%</span>
             </div>
-          </section>
-        </div>
 
-        <div class="card-row">
-          <section class="card card-notifications" id="card-notifications" aria-label="Notifications">
-            <h2 class="card-title">
-              <span class="icon-slot small" id="notifications-title-icon" aria-hidden="true"></span>
-              Notifications
-            </h2>
-            <ul class="notif-list" id="notif-list">
-              <li class="notif-empty">All clear</li>
-            </ul>
-          </section>
-
-          <section class="card card-schedule" id="card-schedule" aria-label="Today's Schedule">
-            <h2 class="card-title">
-              <span class="icon-slot small" id="schedule-title-icon" aria-hidden="true"></span>
-              Today's Schedule
-            </h2>
-            <ul class="schedule-list" id="schedule-list">
-              <li class="schedule-empty">No events</li>
-            </ul>
-          </section>
-        </div>
-
-        <div class="card-row">
-          <section class="card card-alarm" id="card-alarm" aria-label="Next Alarm">
-            <h2 class="card-title">
-              <span class="icon-slot small" id="alarm-title-icon" aria-hidden="true"></span>
-              Next Alarm
-            </h2>
-            <div class="card-body">
-              <div class="alarm-time" id="alarm-time">–</div>
+            <div class="sound-row">
+              <select class="sound-select" id="sound-picker" aria-label="Choose sound"></select>
+              <select class="sound-select" id="timer-picker" aria-label="Sleep timer">
+                <option value="off">Timer: Off</option>
+                <option value="15">Timer: 15m</option>
+                <option value="30">Timer: 30m</option>
+                <option value="45">Timer: 45m</option>
+                <option value="60">Timer: 1h</option>
+                <option value="120">Timer: 2h</option>
+                <option value="untilAlarm">Timer: Alarm</option>
+              </select>
             </div>
-          </section>
-
-          <section class="card card-sound" id="card-sound" aria-label="Sound Machine">
-            <h2 class="card-title">Sound Machine</h2>
-            <div class="card-body">
-              <div class="sound-current">
-                <span class="icon-slot" id="sound-icon" aria-hidden="true"></span>
-                <span id="sound-name" class="sound-name">Off</span>
-                <div class="sound-controls">
-                  <button class="icon-button" id="sound-play-pause" type="button" aria-label="Play">
-                    <span class="icon-slot" id="sound-play-pause-icon" aria-hidden="true"></span>
-                  </button>
-                  <button class="icon-button" id="sound-stop" type="button" aria-label="Stop">
-                    <span class="icon-slot" id="sound-stop-icon" aria-hidden="true"></span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="sound-row">
-                <span class="icon-slot small" id="volume-icon" aria-hidden="true"></span>
-                <input type="range" id="sound-volume" class="sound-volume" min="0" max="100" value="50" aria-label="Volume" />
-                <span class="sound-volume-label" id="sound-volume-label">50%</span>
-              </div>
-
-              <div class="sound-row">
-                <select class="sound-select" id="sound-picker" aria-label="Choose sound"></select>
-                <select class="sound-select" id="timer-picker" aria-label="Sleep timer">
-                  <option value="off">Timer: Off</option>
-                  <option value="15">Timer: 15m</option>
-                  <option value="30">Timer: 30m</option>
-                  <option value="45">Timer: 45m</option>
-                  <option value="60">Timer: 1h</option>
-                  <option value="120">Timer: 2h</option>
-                  <option value="untilAlarm">Timer: Alarm</option>
-                </select>
-              </div>
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </main>
     </section>
 

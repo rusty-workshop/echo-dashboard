@@ -243,14 +243,18 @@ input {
 }
 
 /* ---- Card grid -----------------------------------------------------------
-   Three explicit .card-row wrappers (2 cards each), laid out with flexbox
-   rather than CSS Grid. Grid's 1fr row-track sizing (grid-template-rows:
-   repeat(3, 1fr) inside a grid-in-grid layout) verified correct in desktop
-   Chrome but rendered only 2 of 6 cards on the Echo Show's actual WebView -
-   flexbox's height distribution has much more consistent cross-WebView
-   support. Adding a 7th/8th card means adding a new .card-row in
-   index.html, since flexbox has no auto-wrap equivalent to grid's
-   auto-flow. */
+   Rows of two cards each, laid out with flexbox rather than CSS Grid.
+   Grid's 1fr row-track sizing (grid-template-rows: repeat(3, 1fr) inside a
+   grid-in-grid layout) verified correct in desktop Chrome but rendered
+   only 2 of 6 cards on the Echo Show's actual WebView - flexbox's height
+   distribution has much more consistent cross-WebView support.
+
+   Tile order/visibility/size is now customizable from the phone app (see
+   the "layout" field on /dashboard), so the .card-row wrappers themselves
+   are built dynamically by script.js's applyTileLayout() rather than
+   hardcoded in index.html - row/card flex-grow is set inline per row/card
+   from TILE_SIZE_WEIGHT there instead of fixed CSS selectors like
+   ".card-row:nth-child(2)" that would no longer line up with anything. */
 
 .card-grid {
   display: flex;
@@ -263,25 +267,9 @@ input {
 
 .card-row {
   display: flex;
-  flex: 1;
   gap: clamp(0.5rem, 1.4vw, 1rem);
   min-height: 0;
   min-width: 0;
-}
-
-/* Row 2 (Notifications + Schedule) and row 3 (Alarm + Sound Machine) both
-   get a larger share of height than row 1: Notifications now has its own
-   full dedicated page (Phone, page 2), but still deserves more room here
-   than a single-line summary - and the Sound Machine card has more
-   controls to fit (current sound + transport buttons, volume, two
-   selects) than any other card. Alarm's own content is minimal - it gets
-   a smaller column share below - so both rows can afford the extra
-   height without starving Schedule or Alarm. */
-.card-row:nth-child(2) {
-  flex: 1.25;
-}
-.card-row:nth-child(3) {
-  flex: 1.4;
 }
 
 .card {
@@ -297,34 +285,8 @@ input {
   min-height: 0;
   overflow: hidden;
   animation: card-fade-in 480ms ease-out backwards;
-  transition: box-shadow var(--transition-fast);
+  transition: box-shadow var(--transition-fast), flex-grow var(--transition-fast);
 }
-
-/* Within their rows, Notifications gets more width than Schedule, and
-   Alarm gets less width than Sound Machine (see index.html comment: Alarm
-   moved most of its "screen time" to page 4, and Notifications' compact
-   card should show more than one or two items at a glance now that
-   there's no separate expand affordance on this page). Comes after the
-   base .card rule so these override its flex: 1 at equal specificity. */
-.card-notifications {
-  flex: 1.6;
-}
-.card-schedule {
-  flex: 1;
-}
-.card-alarm {
-  flex: 0.6;
-}
-.card-sound {
-  flex: 1.4;
-}
-
-.card-row:nth-child(1) .card:nth-child(1) { animation-delay: 0ms; }
-.card-row:nth-child(1) .card:nth-child(2) { animation-delay: 40ms; }
-.card-row:nth-child(2) .card:nth-child(1) { animation-delay: 80ms; }
-.card-row:nth-child(2) .card:nth-child(2) { animation-delay: 120ms; }
-.card-row:nth-child(3) .card:nth-child(1) { animation-delay: 160ms; }
-.card-row:nth-child(3) .card:nth-child(2) { animation-delay: 200ms; }
 
 .card-title {
   margin: 0;

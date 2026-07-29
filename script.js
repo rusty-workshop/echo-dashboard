@@ -149,6 +149,7 @@ const ICONS = {
   trash:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
 };
 
 // ---------------------------------------------------------------------------
@@ -477,14 +478,18 @@ function updateClock() {
   const timeText = `${hour}:${minute} ${period}`;
   const monthdayText = `${month} ${day}`;
 
-  // The clock appears twice - compact on the Morning Overview page, huge
-  // on the dedicated Clock/Sound page - so both ids get every tick.
+  // The clock appears three times - compact on the Morning Overview page,
+  // huge on the dedicated Clock/Sound page, and huge again in Bedside
+  // Mode - so all three sets of ids get every tick.
   setText("clock-time", timeText);
   setText("clock-weekday", weekday);
   setText("clock-monthday", monthdayText);
   setText("clock-time-lg", timeText);
   setText("clock-weekday-lg", weekday);
   setText("clock-monthday-lg", monthdayText);
+  setText("clock-time-bedside", timeText);
+  setText("clock-weekday-bedside", weekday);
+  setText("clock-monthday-bedside", monthdayText);
   if (isAlarmRinging) setText("alarm-ringing-time", timeText);
 
   updateStatusLine();
@@ -653,15 +658,36 @@ function renderSchedule(events, showsTomorrow) {
   if (listLg) listLg.innerHTML = html;
 }
 
+/** The same today/tomorrow-aware first-event field the Morning Briefing
+ *  reads (see renderMorningBriefing()) - in the common case Bedside Mode
+ *  is used at night, when calendarShowsTomorrow is already true, so this
+ *  naturally shows tomorrow's first event without a separate backend
+ *  field. */
+function renderBedsideTomorrow(data) {
+  const el = byId("bedside-tomorrow");
+  if (!el) return;
+  const firstEvent = data.calendar && data.calendar.length > 0 ? data.calendar[0] : null;
+  if (!firstEvent) {
+    el.textContent = "";
+    return;
+  }
+  const dayWord = data.calendarShowsTomorrow ? "Tomorrow" : "Today";
+  const time = firstEvent.allDay ? "all day" : formatTime12h(firstEvent.start);
+  el.textContent = `${dayWord}: ${firstEvent.title || "Untitled"} at ${time}`;
+}
+
 function renderAlarm(nextAlarm) {
   const text = nextAlarm ? formatTime12h(nextAlarm.time) : "No alarm";
 
-  // Alarm appears twice - the compact Overview card and the inline line
-  // under the clock on the Clock/Sound page.
+  // Alarm appears three times - the compact Overview card, the inline
+  // line under the clock on the Clock/Sound page, and again in Bedside
+  // Mode.
   setIcon("alarm-title-icon", "alarm");
   setText("alarm-time", text);
   setIcon("alarm-title-icon-lg", "alarm");
   setText("alarm-time-lg", text);
+  setIcon("alarm-title-icon-bedside", "alarm");
+  setText("alarm-time-bedside", text);
 }
 
 /** Sets a <input type=range>'s value from server state, unless the user is
@@ -683,16 +709,22 @@ function syncPickerIfIdle(id, soundName) {
   if (matching) picker.value = matching.value;
 }
 
+// Sound Machine appears three times - the compact Overview card, the full
+// control panel on the Clock/Sound page, and again in Bedside Mode - all
+// three sets of controls get updated together so any of them reflects
+// reality regardless of which one was used to change it.
+const SOUND_MACHINE_ID_SUFFIXES = ["", "-lg", "-bedside"];
+
 function renderSoundMachine(state) {
   // Defensive against a missing/malformed field - e.g. an old cached
   // /dashboard response from before this field existed. CACHE_KEY is
   // versioned to avoid this in practice, but a render function shouldn't
   // throw and abort the rest of the page over one bad field either way.
   if (!state) {
-    setIcon("sound-icon", "speaker");
-    setText("sound-name", "Off");
-    setIcon("sound-icon-lg", "speaker");
-    setText("sound-name-lg", "Off");
+    SOUND_MACHINE_ID_SUFFIXES.forEach((suffix) => {
+      setIcon(`sound-icon${suffix}`, "speaker");
+      setText(`sound-name${suffix}`, "Off");
+    });
     return;
   }
 
@@ -702,29 +734,17 @@ function renderSoundMachine(state) {
   const playPauseIcon = state.playing ? "pause" : "play";
   const playPauseLabel = state.playing ? "Pause" : "Play";
 
-  // Sound Machine appears twice - the compact Overview card and the full
-  // control panel on the Clock/Sound page - both sets of controls get
-  // updated together so either one reflects reality regardless of which
-  // page was used to change it.
-  setIcon("sound-icon", "speaker");
-  setText("sound-name", nameText);
-  setIcon("sound-play-pause-icon", playPauseIcon);
-  byId("sound-play-pause")?.setAttribute("aria-label", playPauseLabel);
-  setIcon("sound-stop-icon", "stop");
-  setIcon("volume-icon", "volume");
-  syncRangeInputIfIdle("sound-volume", state.volume);
-  setText("sound-volume-label", `${state.volume}%`);
-  syncPickerIfIdle("sound-picker", state.sound);
-
-  setIcon("sound-icon-lg", "speaker");
-  setText("sound-name-lg", nameText);
-  setIcon("sound-play-pause-icon-lg", playPauseIcon);
-  byId("sound-play-pause-lg")?.setAttribute("aria-label", playPauseLabel);
-  setIcon("sound-stop-icon-lg", "stop");
-  setIcon("volume-icon-lg", "volume");
-  syncRangeInputIfIdle("sound-volume-lg", state.volume);
-  setText("sound-volume-label-lg", `${state.volume}%`);
-  syncPickerIfIdle("sound-picker-lg", state.sound);
+  SOUND_MACHINE_ID_SUFFIXES.forEach((suffix) => {
+    setIcon(`sound-icon${suffix}`, "speaker");
+    setText(`sound-name${suffix}`, nameText);
+    setIcon(`sound-play-pause-icon${suffix}`, playPauseIcon);
+    byId(`sound-play-pause${suffix}`)?.setAttribute("aria-label", playPauseLabel);
+    setIcon(`sound-stop-icon${suffix}`, "stop");
+    setIcon(`volume-icon${suffix}`, "volume");
+    syncRangeInputIfIdle(`sound-volume${suffix}`, state.volume);
+    setText(`sound-volume-label${suffix}`, `${state.volume}%`);
+    syncPickerIfIdle(`sound-picker${suffix}`, state.sound);
+  });
 }
 
 function renderMorningBriefing(data) {
@@ -814,6 +834,7 @@ function renderDashboard(data) {
   renderBatteryWarning(data.battery, data.charging);
   renderNotifications(data.notificationGroups);
   renderSchedule(data.calendar, data.calendarShowsTomorrow);
+  renderBedsideTomorrow(data);
   renderAlarm(data.nextAlarm);
   renderSoundMachine(data.soundMachine);
   renderWakeAlarms(data.wakeAlarms);
@@ -1091,9 +1112,10 @@ async function ensureSoundLibraryLoaded() {
   if (soundLibraryLoaded) return;
   const picker = byId("sound-picker");
   const pickerLg = byId("sound-picker-lg");
+  const pickerBedside = byId("sound-picker-bedside");
   const wakeAlarmPicker = byId("wakealarm-sound-picker");
   const defaultAlarmSoundPicker = byId("wakealarm-default-sound-picker");
-  if (!picker && !pickerLg && !wakeAlarmPicker && !defaultAlarmSoundPicker) return;
+  if (!picker && !pickerLg && !pickerBedside && !wakeAlarmPicker && !defaultAlarmSoundPicker) return;
 
   try {
     const response = await fetch(`${AURORA_BASE_URL}/sound/library`, { cache: "no-store" });
@@ -1104,6 +1126,7 @@ async function ensureSoundLibraryLoaded() {
       .join("");
     if (picker) picker.innerHTML = optionsHtml;
     if (pickerLg) pickerLg.innerHTML = optionsHtml;
+    if (pickerBedside) pickerBedside.innerHTML = optionsHtml;
     // Alarms fall back to the default alarm sound when nothing's chosen
     // (see WakeAlarm.soundId), so this picker gets an explicit "Default"
     // option the ambient pickers above don't need.
@@ -1182,6 +1205,7 @@ function setupSoundControlsFor(idSuffix) {
 function setupSoundControls() {
   setupSoundControlsFor("");
   setupSoundControlsFor("-lg");
+  setupSoundControlsFor("-bedside");
 }
 
 // ---------------------------------------------------------------------------
@@ -1686,6 +1710,42 @@ function setupThemePicker() {
 }
 
 // ---------------------------------------------------------------------------
+// Bedside Mode - a one-tap "going to sleep" action: starts rain, dims the
+// display further than the ordinary night dim (see body.bedside-active in
+// style.css), and makes sure any wake alarms are actually armed, instead
+// of several manual steps. The overlay itself (huge clock, alarm/tomorrow
+// caption, Sound Machine) lives outside the pager, like the alarm-ringing
+// overlay - it's a summoned view, not one more page to swipe to.
+// ---------------------------------------------------------------------------
+
+const BEDSIDE_RAIN_SOUND_ID = "rain";
+
+async function enterBedsideMode() {
+  byId("bedside-overlay")?.classList.remove("hidden");
+  document.body.classList.add("bedside-active");
+
+  await startLocalPlayback(BEDSIDE_RAIN_SOUND_ID, 0);
+  await postSoundAction(`/sound/play?id=${BEDSIDE_RAIN_SOUND_ID}`);
+
+  const disabledAlarms = Array.from(latestWakeAlarmsById.values()).filter((alarm) => !alarm.enabled);
+  await Promise.all(disabledAlarms.map((alarm) => setWakeAlarm({ ...alarm, enabled: true })));
+
+  poll();
+}
+
+function exitBedsideMode() {
+  byId("bedside-overlay")?.classList.add("hidden");
+  document.body.classList.remove("bedside-active");
+}
+
+function setupBedsideMode() {
+  setIcon("bedside-trigger-icon", "moon");
+  setIcon("bedside-exit-icon", "close");
+  byId("bedside-trigger-btn")?.addEventListener("click", enterBedsideMode);
+  byId("bedside-exit-btn")?.addEventListener("click", exitBedsideMode);
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -1707,6 +1767,7 @@ function init() {
   setupPager();
   setupPageScrollEffect();
   setupThemePicker();
+  setupBedsideMode();
   setupSoundControls();
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();

@@ -155,11 +155,18 @@ input {
 }
 
 .hero-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   min-width: 0;
   min-height: 0;
+}
+
+.bedside-trigger-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .clock-panel {
@@ -1171,6 +1178,87 @@ input {
 .alarm-dismiss-btn {
   background: var(--accent-danger);
   color: var(--bg);
+}
+
+/* ---- Bedside Mode ------------------------------------------------------------
+   A summoned view, not one more page to swipe to - outside the pager, one
+   z-index below the alarm-ringing overlay so a ringing alarm still wins
+   over it. Alarm (small) up top, the clock as the one dominant element in
+   the middle, Sound Machine controls anchored at the bottom - see
+   enterBedsideMode()/exitBedsideMode() in script.js. */
+
+.bedside-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(1.25rem, 3vh, 2.5rem) clamp(1rem, 3vw, 2rem);
+  background: var(--bg);
+}
+
+.bedside-exit-btn {
+  position: absolute;
+  top: clamp(1rem, 2.5vh, 1.5rem);
+  right: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.bedside-top {
+  flex: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2em;
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+.bedside-top .alarm-inline {
+  margin-top: 0;
+}
+
+.bedside-tomorrow::before {
+  content: "·";
+  margin-right: 1.2em;
+}
+
+.bedside-tomorrow:empty::before {
+  content: none;
+}
+
+.bedside-clock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.3rem, 1vh, 0.6rem);
+}
+
+.bedside-clock .clock-time-huge {
+  font-size: clamp(4rem, 16vw, 7.5rem);
+}
+
+.bedside-clock .clock-date {
+  font-size: var(--fs-body-lg);
+}
+
+.bedside-sound-panel {
+  flex: none;
+  width: 100%;
+  max-width: 32rem;
+}
+
+/* Dimmer than the ordinary night-mode dim (--dimmed below) - Bedside Mode
+   is an explicit "I'm going to sleep now" action, not just "it's dark
+   out". Specificity (two classes) beats .dimmed alone regardless of
+   which class was toggled last. */
+body.dimmed.bedside-active,
+body.bedside-active {
+  filter: brightness(0.1) !important;
 }
 
 /* ---- Page dots --------------------------------------------------------------

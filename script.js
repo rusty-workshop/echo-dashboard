@@ -335,6 +335,130 @@ function setWeatherBackground(condition, nightOverride) {
   el.className = `weather-bg weather-bg--${name}`;
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard wallpaper - a single image (Aurora's Photo Picker, see
+// WallpaperRepository there), fetched once and shown behind everything
+// (see .wallpaper-bg in style.css). Its dominant color, extracted here via
+// a downsampled <canvas> (Aurora just serves bytes - it has no reason to
+// know about colors), becomes the dashboard's accent whenever a wallpaper
+// is set, taking priority over the usual weather-driven accent in
+// renderWeather() - once a photo is on screen, the accent has to match
+// it, not fight it with an unrelated weather-blue or -orange.
+// ---------------------------------------------------------------------------
+
+let wallpaperAccentColor = null; // null = no wallpaper set, weather drives the accent as before
+let wallpaperLoadAttempted = false;
+
+function rgbToHsl(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  const delta = max - min;
+  if (delta !== 0) {
+    s = delta / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case r:
+        h = ((g - b) / delta) % 6;
+        break;
+      case g:
+        h = (b - r) / delta + 2;
+        break;
+      default:
+        h = (r - g) / delta + 4;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [h, s, l];
+}
+
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let [r, g, b] = [0, 0, 0];
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+/** Averages a downsampled draw of [imageEl] and boosts saturation/
+ *  lightness to a comfortable UI range - a plain pixel average from a
+ *  real photo reads as muddy gray, not a usable accent color. */
+function extractWallpaperAccentColor(imageEl) {
+  const size = 40;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(imageEl, 0, 0, size, size);
+
+  let data;
+  try {
+    data = ctx.getImageData(0, 0, size, size).data;
+  } catch (err) {
+    return null; // Tainted canvas - shouldn't happen for a same-CORS-policy Aurora fetch.
+  }
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue; // skip mostly-transparent pixels
+    r += data[i];
+    g += data[i + 1];
+    b += data[i + 2];
+    count++;
+  }
+  if (count === 0) return null;
+  r = Math.round(r / count);
+  g = Math.round(g / count);
+  b = Math.round(b / count);
+
+  const [h, s] = rgbToHsl(r, g, b);
+  const [ar, ag, ab] = hslToRgb(h, Math.max(s, 0.5), 0.62);
+  return `rgb(${ar}, ${ag}, ${ab})`;
+}
+
+async function ensureWallpaperLoaded() {
+  if (wallpaperLoadAttempted) return;
+  wallpaperLoadAttempted = true;
+
+  const bg = byId("wallpaper-bg");
+  if (!bg) return;
+
+  try {
+    const response = await fetch(`${AURORA_BASE_URL}/wallpaper/image`, { cache: "no-store" });
+    if (!response.ok) return; // 404 = no wallpaper set - leave the layer empty, nothing else to do.
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      bg.style.backgroundImage = `url("${url}")`;
+      wallpaperAccentColor = extractWallpaperAccentColor(img);
+      if (wallpaperAccentColor) {
+        document.documentElement.style.setProperty("--accent", wallpaperAccentColor);
+      }
+    };
+    img.src = url;
+  } catch (err) {
+    // Aurora unreachable at startup - no wallpaper this session, same as
+    // the other ensureXLoaded() helpers' offline fallback.
+  }
+}
+
 // Past this hour (and before NIGHT_WEATHER_OVERRIDE_END_HOUR the next
 // morning), the Weather card shows a moon and switches to silver
 // regardless of the actual condition - even a clear, 90°+ night shouldn't
@@ -547,7 +671,12 @@ function renderWeather(weather) {
   setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
   setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
 
-  if (nightOverride) {
+  // A set wallpaper wins outright - see ensureWallpaperLoaded()'s doc
+  // comment for why the accent has to follow the wallpaper once one
+  // exists, rather than keep chasing the weather.
+  if (wallpaperAccentColor) {
+    document.documentElement.style.setProperty("--accent", wallpaperAccentColor);
+  } else if (nightOverride) {
     document.documentElement.style.setProperty("--accent", NIGHT_WEATHER_ACCENT);
   } else {
     applyAccentColor(weather.condition);
@@ -1791,7 +1920,7 @@ function setupBedsideMode() {
 
 const AMBIENT_IDLE_MS = 30 * 60 * 1000;
 const AMBIENT_PHOTO_INTERVAL_MS = 30 * 1000;
-const AMBIENT_DEFAULT_BRIGHTNESS_PERCENT = 30;
+const AMBIENT_DEFAULT_BRIGHTNESS_PERCENT = 60;
 
 let ambientIdleTimer = null;
 let ambientPhotoIds = [];
@@ -1931,6 +2060,7 @@ function init() {
   setupWakeAlarmRingingControls();
   setupNotificationClearButtons();
   ensureSoundLibraryLoaded();
+  ensureWallpaperLoaded();
   startClock();
   startPolling();
 }

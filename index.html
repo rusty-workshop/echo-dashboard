@@ -31,6 +31,14 @@
     function per widget in script.js updates both ids. Four fixed pages
     is a small, closed set - not worth abstracting over.
   -->
+  <!-- The dashboard's wallpaper (see ensureWallpaperLoaded() in script.js) -
+       behind weather-bg so its ambient animated effects (rain, snow,
+       stars, ...) still layer on top of it. A dark scrim keeps card text
+       legible over an arbitrary photo; absent entirely (no background at
+       all here) until a wallpaper is actually set. -->
+  <div class="wallpaper-bg" id="wallpaper-bg" aria-hidden="true">
+    <div class="wallpaper-scrim"></div>
+  </div>
   <div class="weather-bg" id="weather-bg" aria-hidden="true"></div>
   <div class="pager" id="pager">
     <!-- Page 1: Morning Overview - the original single-page dashboard,

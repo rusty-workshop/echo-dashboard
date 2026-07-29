@@ -6,7 +6,7 @@
 
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
-`node_modules`. It polls [**Aurora**](https://github.com/rustyisacat/Aurora) v2.0, a
+`node_modules`. It pulls from [**Aurora**](https://github.com/rustyisacat/Aurora) v2.0, a
 companion Android app, over your home Wi-Fi and turns an old smart display
 into a self-hosted phone status board, morning briefing, bedside alarm
 clock, and bedside sound machine.
@@ -110,21 +110,21 @@ No build tools, no package manager, no dependencies: just `index.html`,
 ## How it behaves
 
 - **Two independent update loops.** The clock ticks every second off the
-  browser's own local time; `/dashboard` is polled every 30 seconds.
+  browser's own local time; `/dashboard` is pulled every 30 seconds.
   Neither affects the other.
 - **Never blank.** The last successful `/dashboard` response is cached in
   `localStorage` and rendered immediately on load, before the first fetch
   even completes. If Aurora becomes unreachable, the dashboard keeps
   showing that cached data instead of going empty.
 - **Quiet about connectivity.** A small status line is invisible while
-  data is fresh. After a few consecutive failed polls it shows
+  data is fresh. After a few consecutive failed pulls it shows
   "Reconnecting to Aurora…", then "Offline - showing data from X min ago"
   if the outage continues.
 - **Values pulse briefly** on change (a CSS animation) so an update reads
   as a small "beat" rather than a silent jump-cut — only fields that
   actually changed animate.
 - **Sound Machine survives reloads and reboots.** Aurora remembers what
-  *should* be playing; the very first poll after this page loads (or the
+  *should* be playing; the very first pull after this page loads (or the
   whole display reboots) notices and resumes it automatically. A ringing
   Wake Alarm is reconciled the same way, so a reload that happens to land
   mid-ring picks it right back up.
@@ -137,7 +137,7 @@ No build tools, no package manager, no dependencies: just `index.html`,
    `script.js`.
 2. Add one `renderX(data.x)` function in `script.js`, next to
    `renderWeather`/`renderPhone`/etc., and call it from `renderDashboard()`.
-3. No changes should be needed to the polling, caching, layout, or
+3. No changes should be needed to the pulling, caching, layout, or
    connection-status code — all of it is already generic over "whatever
    the current `/dashboard` response and layout say."
 

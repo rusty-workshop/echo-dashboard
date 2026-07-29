@@ -472,6 +472,12 @@ input {
   color: var(--text-secondary);
 }
 
+.phone-charging-eta {
+  font-size: var(--fs-caption);
+  color: var(--accent);
+  transition: color var(--transition-color);
+}
+
 .battery-fill-track {
   width: 100%;
   height: 0.4em;
@@ -507,10 +513,31 @@ input {
 
 .notif-item {
   display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: var(--fs-body);
+  min-width: 0;
+}
+
+.notif-icon {
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 0.3em;
+  object-fit: cover;
+  transition: opacity 200ms ease;
+}
+
+.notif-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-item-header {
+  display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 0.5em;
-  font-size: var(--fs-body);
 }
 
 .notif-app {
@@ -526,6 +553,14 @@ input {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   transition: color var(--transition-color);
+}
+
+.notif-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
 }
 
 .notif-empty {

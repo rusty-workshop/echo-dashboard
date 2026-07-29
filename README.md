@@ -57,6 +57,12 @@ however you like, right down to matching your own wallpaper's colors.
 - **Do Not Disturb toggle**: silence the phone straight from the
   Notifications card — it flips Android's real system DND, so calls and
   notifications stay quiet until you toggle it back.
+- **Notification icons and previews**: each app in the Notifications card
+  shows its real launcher icon plus a one-line preview of its latest
+  notification, not just a bare count — which apps show up at all is
+  controlled from the Aurora phone app's Notification Apps card.
+- **Charging ETA**: the Phone card shows "Full in ~X min" once Aurora has
+  enough recent charge-rate history to estimate it.
 - **8 Dashboard Themes** (Material You, Nothing OS, Pixel, Retro CRT, OLED
   Minimal, Catppuccin, Nord, Gruvbox), switchable from the Settings page —
   each swaps palette, typography, shape, and shadow style over the same

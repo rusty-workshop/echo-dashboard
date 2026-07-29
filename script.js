@@ -677,9 +677,10 @@ function renderBatteryWarning(battery, charging) {
   setText("battery-warning-text", `Phone battery at ${battery}% - plug it in`);
 }
 
-function renderPhone(battery, charging) {
+function renderPhone(battery, charging, chargingEtaMinutes) {
   const icon = charging ? "batteryCharging" : "battery";
   const chargingText = charging ? "Charging" : "Not charging";
+  const etaText = charging && chargingEtaMinutes != null ? `Full in ~${formatDuration(chargingEtaMinutes)}` : "";
 
   // Phone appears twice - the compact Overview card and the big hero tile
   // on the Phone page.
@@ -688,12 +689,22 @@ function renderPhone(battery, charging) {
   setText("phone-charging", chargingText);
   const fillBar = byId("phone-battery-fill");
   if (fillBar) fillBar.style.width = `${battery}%`;
+  const eta = byId("phone-charging-eta");
+  if (eta) {
+    eta.textContent = etaText;
+    eta.classList.toggle("hidden", !etaText);
+  }
 
   setIcon("phone-battery-icon-lg", icon);
   setRollingNumber("phone-battery-level-lg", battery, "%");
   setText("phone-charging-lg", chargingText);
   const fillBarLg = byId("phone-battery-fill-lg");
   if (fillBarLg) fillBarLg.style.width = `${battery}%`;
+  const etaLg = byId("phone-charging-eta-lg");
+  if (etaLg) {
+    etaLg.textContent = etaText;
+    etaLg.classList.toggle("hidden", !etaText);
+  }
 }
 
 function renderNotifications(groups) {
@@ -703,14 +714,7 @@ function renderNotifications(groups) {
   const html =
     !groups || groups.length === 0
       ? '<li class="notif-empty">All clear</li>'
-      : groups
-          .map(
-            (group) => `<li class="notif-item">
-        <span class="notif-app">${escapeHtml(group.app)}</span>
-        <span class="notif-count">${group.count}</span>
-      </li>`
-          )
-          .join("");
+      : groups.map(notificationItemHtml).join("");
 
   // Notifications appears twice - the compact Overview card and the full
   // list on the Phone page - both get the same markup.
@@ -718,6 +722,27 @@ function renderNotifications(groups) {
   if (list) list.innerHTML = html;
   const listLg = byId("notif-list-lg");
   if (listLg) listLg.innerHTML = html;
+}
+
+/** Icon fetched straight from Aurora (GET /notifications/icon) - fades out
+ *  in place rather than collapsing on error, so a missing icon (e.g. the
+ *  app was since uninstalled) doesn't throw the row's alignment off. The
+ *  preview line is the latest notification's title/text, omitted entirely
+ *  for a group that somehow has neither (e.g. a silent/data-only post). */
+function notificationItemHtml(group) {
+  const iconUrl = `${AURORA_BASE_URL}/notifications/icon?package=${encodeURIComponent(group.packageName)}`;
+  const preview = [group.latestTitle, group.latestText].filter(Boolean).join(" — ");
+  const previewHtml = preview ? `<div class="notif-preview">${escapeHtml(preview)}</div>` : "";
+  return `<li class="notif-item">
+      <img class="notif-icon" src="${iconUrl}" alt="" onerror="this.style.opacity='0'" />
+      <div class="notif-item-main">
+        <div class="notif-item-header">
+          <span class="notif-app">${escapeHtml(group.app)}</span>
+          <span class="notif-count">${group.count}</span>
+        </div>
+        ${previewHtml}
+      </div>
+    </li>`;
 }
 
 /**
@@ -888,6 +913,17 @@ function formatCountdown(minutesUntil) {
   return `in ${hours} hr${hours === 1 ? "" : "s"}`;
 }
 
+/** Bare duration, no "in"/"until" framing - "45 min" / "2 hrs" - for
+ *  slotting into a sentence that already supplies its own preposition
+ *  (e.g. "Full in ~${formatDuration(...)}"). */
+function formatDuration(minutes) {
+  if (minutes == null || minutes < 0) return null;
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hr${hours === 1 ? "" : "s"}`;
+}
+
 /**
  * A genuine at-a-glance summary, not a restatement of the cards sitting
  * right below it - dropped the old notification-count/battery clause
@@ -996,7 +1032,7 @@ function renderDashboard(data) {
   renderMorningBriefing(data);
   renderWeather(data.weather);
   renderAmbientWeather(data.weather);
-  renderPhone(data.battery, data.charging);
+  renderPhone(data.battery, data.charging, data.chargingEtaMinutes);
   renderBatteryWarning(data.battery, data.charging);
   renderNotifications(data.notificationGroups);
   latestDndEnabled = data.dndEnabled;

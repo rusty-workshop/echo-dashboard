@@ -39,6 +39,9 @@
          style.css). -->
     <section class="page page-overview" id="page-overview" aria-label="Morning Overview">
       <section class="hero-panel">
+        <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
+          <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
+        </button>
         <header class="clock-panel">
           <div class="clock-time" id="clock-time" aria-live="off">--:--</div>
           <div class="clock-date">
@@ -386,6 +389,65 @@
       <button class="alarm-action-btn alarm-snooze-btn" id="alarm-snooze-btn" type="button">Snooze</button>
       <button class="alarm-action-btn alarm-dismiss-btn" id="alarm-dismiss-btn" type="button">Dismiss</button>
     </div>
+  </div>
+
+  <!-- Bedside Mode - outside the pager (like the alarm overlay above) since
+       it's a special summoned view, not one more page to swipe to. See
+       enterBedsideMode()/exitBedsideMode() in script.js. -->
+  <div class="bedside-overlay hidden" id="bedside-overlay" aria-label="Bedside Mode">
+    <button class="icon-button bedside-exit-btn" id="bedside-exit-btn" type="button" aria-label="Exit Bedside Mode">
+      <span class="icon-slot" id="bedside-exit-icon" aria-hidden="true"></span>
+    </button>
+
+    <div class="bedside-top">
+      <div class="alarm-inline" id="alarm-inline-bedside">
+        <span class="icon-slot small" id="alarm-title-icon-bedside" aria-hidden="true"></span>
+        <span id="alarm-time-bedside">–</span>
+      </div>
+      <div class="bedside-tomorrow" id="bedside-tomorrow"></div>
+    </div>
+
+    <div class="bedside-clock">
+      <div class="clock-time-huge" id="clock-time-bedside" aria-live="off">--:--</div>
+      <div class="clock-date">
+        <span class="clock-weekday" id="clock-weekday-bedside">-</span>
+        <span class="clock-monthday" id="clock-monthday-bedside">-</span>
+      </div>
+    </div>
+
+    <section class="sound-panel-lg bedside-sound-panel" aria-label="Sound Machine">
+      <div class="sound-current sound-current-lg">
+        <span class="icon-slot" id="sound-icon-bedside" aria-hidden="true"></span>
+        <span id="sound-name-bedside" class="sound-name">Off</span>
+        <div class="sound-controls">
+          <button class="icon-button icon-button-lg" id="sound-play-pause-bedside" type="button" aria-label="Play">
+            <span class="icon-slot" id="sound-play-pause-icon-bedside" aria-hidden="true"></span>
+          </button>
+          <button class="icon-button icon-button-lg" id="sound-stop-bedside" type="button" aria-label="Stop">
+            <span class="icon-slot" id="sound-stop-icon-bedside" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="sound-row sound-row-lg">
+        <span class="icon-slot small" id="volume-icon-bedside" aria-hidden="true"></span>
+        <input type="range" id="sound-volume-bedside" class="sound-volume sound-volume-lg" min="0" max="100" value="50" aria-label="Volume" />
+        <span class="sound-volume-label" id="sound-volume-label-bedside">50%</span>
+      </div>
+
+      <div class="sound-row sound-row-lg">
+        <select class="sound-select sound-select-lg" id="sound-picker-bedside" aria-label="Choose sound"></select>
+        <select class="sound-select sound-select-lg" id="timer-picker-bedside" aria-label="Sleep timer">
+          <option value="off">Timer: Off</option>
+          <option value="15">Timer: 15m</option>
+          <option value="30">Timer: 30m</option>
+          <option value="45">Timer: 45m</option>
+          <option value="60">Timer: 1h</option>
+          <option value="120">Timer: 2h</option>
+          <option value="untilAlarm">Timer: Alarm</option>
+        </select>
+      </div>
+    </section>
   </div>
 
   <script src="script.js"></script>

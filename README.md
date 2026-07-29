@@ -2,7 +2,7 @@
 
 ![Vanilla JS](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?logo=javascript&logoColor=black)
 ![No build step](https://img.shields.io/badge/build%20step-none-success)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)
 
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
@@ -203,4 +203,4 @@ and would appreciate the help.
 
 ## License
 
-[MIT](LICENSE)
+[AGPL v3](LICENSE)

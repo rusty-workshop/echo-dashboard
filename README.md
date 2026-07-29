@@ -25,8 +25,10 @@ however you like, right down to matching your own wallpaper's colors.
   Settings page for picking a theme. Two more full-screen views live
   outside that swipeable set entirely, summoned rather than swiped to —
   see Bedside Mode and Ambient Mode below.
-- **Morning Briefing**: a one-glance sentence composed client-side from
-  weather, calendar, notifications, and battery — no extra backend needed.
+- **Morning Briefing**: a one-glance summary composed client-side from
+  weather, calendar, and rain forecast — a greeting, today's conditions
+  (with an umbrella warning if rain is expected), and a countdown to your
+  next calendar event.
 - **Wake Alarms**: set, edit, and delete Aurora's own alarms right from
   this display — time, repeat days, and which sound rings. When one
   fires, a full-screen overlay takes over (any page, not just wherever you
@@ -47,14 +49,18 @@ however you like, right down to matching your own wallpaper's colors.
   weather line, dimmed — cycling your Aurora-picked photos with a slow
   crossfade, or a twinkling starfield if you haven't picked any yet. Any
   touch exits it instantly.
+- **Rotating main-UI wallpaper**: the same photo library you pick for
+  Ambient Mode also cycles slowly behind the main dashboard (scrimmed for
+  legibility), crossfading every few minutes; its dominant color, extracted
+  client-side, becomes the dashboard's accent color, taking over from the
+  weather-driven default.
+- **Do Not Disturb toggle**: silence the phone straight from the
+  Notifications card — it flips Android's real system DND, so calls and
+  notifications stay quiet until you toggle it back.
 - **8 Dashboard Themes** (Material You, Nothing OS, Pixel, Retro CRT, OLED
   Minimal, Catppuccin, Nord, Gruvbox), switchable from the Settings page —
   each swaps palette, typography, shape, and shadow style over the same
   shared layout, no separate frontends to maintain.
-- **Dashboard wallpaper with matching accent color**: pick a photo from
-  the Aurora app and it shows behind the whole main dashboard (scrimmed
-  for legibility); its dominant color, extracted client-side, becomes the
-  dashboard's accent color, taking over from the weather-driven default.
 - **Animated weather backgrounds**: a subtle, condition-specific ambient
   layer behind every page — sun glow, drifting clouds, falling rain or
   snow, thunderstorm flashes, or a starfield at night — all CSS, no JS
@@ -74,9 +80,9 @@ however you like, right down to matching your own wallpaper's colors.
   and size are controlled from the Aurora phone app and picked up here
   automatically, no code changes needed.
 - **Dynamic accent color** that shifts with the current weather condition
-  by default, or follows your wallpaper's colors once you've set one (see
-  above) — every theme keeps this behavior, it's not something themes
-  override.
+  by default, or follows the rotating wallpaper's colors once your photo
+  library has photos (see above) — every theme keeps this behavior, it's
+  not something themes override.
 - **Resilient by default**: the last good response is cached and shown
   immediately on load, survives Aurora going offline, and quietly shows a
   reconnecting/offline status instead of ever going blank.

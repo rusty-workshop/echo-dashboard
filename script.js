@@ -135,6 +135,8 @@ const ICONS = {
   batteryAlert:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 10v4"/><path d="M11 9v3M11 15h.01" stroke-width="2.4"/></svg>',
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  bellOff:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-9.33-5M6.26 6.26A6 6 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8v2.5M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 2l20 20"/></svg>',
   calendar:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
   alarm:
@@ -336,18 +338,14 @@ function setWeatherBackground(condition, nightOverride) {
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard wallpaper - a single image (Aurora's Photo Picker, see
-// WallpaperRepository there), fetched once and shown behind everything
-// (see .wallpaper-bg in style.css). Its dominant color, extracted here via
-// a downsampled <canvas> (Aurora just serves bytes - it has no reason to
-// know about colors), becomes the dashboard's accent whenever a wallpaper
-// is set, taking priority over the usual weather-driven accent in
-// renderWeather() - once a photo is on screen, the accent has to match
-// it, not fight it with an unrelated weather-blue or -orange.
+// Dashboard wallpaper's accent-color extraction. The rotation itself lives
+// further down, next to Ambient Mode's photo-cycling code, since both now
+// share the same Aurora photo library - these two helpers (color math) are
+// general-purpose enough to stay up here with the rest of the weather/
+// accent logic they feed into.
 // ---------------------------------------------------------------------------
 
-let wallpaperAccentColor = null; // null = no wallpaper set, weather drives the accent as before
-let wallpaperLoadAttempted = false;
+let wallpaperAccentColor = null; // null = no wallpaper photos configured, weather drives the accent as before
 
 function rgbToHsl(r, g, b) {
   r /= 255;
@@ -428,35 +426,6 @@ function extractWallpaperAccentColor(imageEl) {
   const [h, s] = rgbToHsl(r, g, b);
   const [ar, ag, ab] = hslToRgb(h, Math.max(s, 0.5), 0.62);
   return `rgb(${ar}, ${ag}, ${ab})`;
-}
-
-async function ensureWallpaperLoaded() {
-  if (wallpaperLoadAttempted) return;
-  wallpaperLoadAttempted = true;
-
-  const bg = byId("wallpaper-bg");
-  if (!bg) return;
-
-  try {
-    const response = await fetch(`${AURORA_BASE_URL}/wallpaper/image`, { cache: "no-store" });
-    if (!response.ok) return; // 404 = no wallpaper set - leave the layer empty, nothing else to do.
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      bg.style.backgroundImage = `url("${url}")`;
-      wallpaperAccentColor = extractWallpaperAccentColor(img);
-      if (wallpaperAccentColor) {
-        document.documentElement.style.setProperty("--accent", wallpaperAccentColor);
-      }
-    };
-    img.src = url;
-  } catch (err) {
-    // Aurora unreachable at startup - no wallpaper this session, same as
-    // the other ensureXLoaded() helpers' offline fallback.
-  }
 }
 
 // Past this hour (and before NIGHT_WEATHER_OVERRIDE_END_HOUR the next
@@ -671,7 +640,7 @@ function renderWeather(weather) {
   setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
   setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
 
-  // A set wallpaper wins outright - see ensureWallpaperLoaded()'s doc
+  // A set wallpaper wins outright - see startWallpaperRotation()'s doc
   // comment for why the accent has to follow the wallpaper once one
   // exists, rather than keep chasing the weather.
   if (wallpaperAccentColor) {
@@ -765,6 +734,30 @@ function setupNotificationClearButtons() {
   const clearAll = () => postSoundAction("/notifications/clear").then(poll);
   byId("notif-clear-btn")?.addEventListener("click", clearAll);
   byId("notif-clear-btn-lg")?.addEventListener("click", clearAll);
+}
+
+/** Reflects the phone's actual Do Not Disturb state (see dndEnabled in
+ *  the /dashboard response) - swaps the bell icon and a persistent accent
+ *  tint, not just a momentary press effect. */
+function renderDnd(dndEnabled) {
+  ["dnd-toggle-btn", "dnd-toggle-btn-lg"].forEach((id) => {
+    byId(id)?.classList.toggle("dnd-active", dndEnabled);
+    byId(id)?.setAttribute("aria-pressed", String(dndEnabled));
+  });
+  setIcon("dnd-toggle-icon", dndEnabled ? "bellOff" : "bell");
+  setIcon("dnd-toggle-icon-lg", dndEnabled ? "bellOff" : "bell");
+}
+
+let latestDndEnabled = false;
+
+/** Toggles off the *current known* state rather than reading the button's
+ *  own visual state at click time - same reasoning as the sound machine's
+ *  controls: the next poll always corrects this if Aurora's actual state
+ *  ends up different (e.g. DND flipped manually on the phone itself). */
+function setupDndToggle() {
+  const toggle = () => postSoundAction(`/dnd/set?enabled=${!latestDndEnabled}`).then(poll);
+  byId("dnd-toggle-btn")?.addEventListener("click", toggle);
+  byId("dnd-toggle-btn-lg")?.addEventListener("click", toggle);
 }
 
 function renderSchedule(events, showsTomorrow) {
@@ -884,28 +877,54 @@ function renderSoundMachine(state) {
   });
 }
 
+/** null if [minutesUntil] is negative or unknown - "in 45 min" / "in 3
+ *  hrs" otherwise. Rounds to the hour past 60 minutes out; nobody needs
+ *  "in 3 hrs 12 min" at a glance. */
+function formatCountdown(minutesUntil) {
+  if (minutesUntil == null || minutesUntil < 0) return null;
+  if (minutesUntil < 1) return "now";
+  if (minutesUntil < 60) return `in ${minutesUntil} min`;
+  const hours = Math.round(minutesUntil / 60);
+  return `in ${hours} hr${hours === 1 ? "" : "s"}`;
+}
+
+/**
+ * A genuine at-a-glance summary, not a restatement of the cards sitting
+ * right below it - dropped the old notification-count/battery clause
+ * entirely (already on the Phone/Notifications cards, and battery has its
+ * own dedicated low-battery banner for when it's actually worth flagging).
+ * Weather gets an umbrella heads-up when rain's actually forecast, and
+ * the first event shows a countdown instead of a flat clock time - both
+ * are things you'd otherwise have to compute yourself.
+ */
 function renderMorningBriefing(data) {
   const hour = currentHourInTimezone(currentTimezone || undefined);
   const greeting = greetingForHour(hour);
   setText("briefing-greeting", data.userName ? `${greeting}, ${data.userName}.` : `${greeting}.`);
 
   const weather = data.weather;
-  setText(
-    "briefing-weather",
-    weather
-      ? `${Math.round(weather.temperature)}°F and ${weather.condition.toLowerCase()}, reaching ${Math.round(weather.high)}° today.`
-      : "Weather data isn't available yet."
-  );
+  let weatherLine = "Weather data isn't available yet.";
+  if (weather) {
+    weatherLine = `${Math.round(weather.temperature)}°F and ${weather.condition.toLowerCase()}, reaching ${Math.round(weather.high)}° today.`;
+    if (weather.rainExpectedAt) {
+      weatherLine += ` Bring an umbrella - rain expected around ${formatTime12h(weather.rainExpectedAt)}.`;
+    }
+  }
+  setText("briefing-weather", weatherLine);
 
   const firstEvent = data.calendar && data.calendar.length > 0 ? data.calendar[0] : null;
   const dayWord = data.calendarShowsTomorrow ? "tomorrow" : "today";
-  const eventPart = firstEvent
-    ? `First event${data.calendarShowsTomorrow ? " tomorrow" : ""} at ${firstEvent.allDay ? "all day" : formatTime12h(firstEvent.start)}`
-    : `No events ${dayWord}`;
-  const notifPart = `${data.notifications} notification${data.notifications === 1 ? "" : "s"}`;
-  const batteryPart = `Battery ${data.battery}%${data.charging ? " (charging)" : ""}`;
-
-  setText("briefing-summary", `${eventPart} · ${notifPart} · ${batteryPart}`);
+  let eventLine = `No events ${dayWord}`;
+  if (firstEvent && firstEvent.allDay) {
+    eventLine = `${firstEvent.title} - all day ${dayWord}`;
+  } else if (firstEvent) {
+    const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
+    const eventMinutes = minutesFromHHMM(firstEvent.start);
+    const minutesUntil = data.calendarShowsTomorrow ? 24 * 60 - nowMinutes + eventMinutes : eventMinutes - nowMinutes;
+    const countdown = formatCountdown(minutesUntil);
+    eventLine = countdown ? `${firstEvent.title} ${countdown}` : `${firstEvent.title} at ${formatTime12h(firstEvent.start)}`;
+  }
+  setText("briefing-summary", eventLine);
 }
 
 let lastAppliedLayoutJson = null;
@@ -980,6 +999,8 @@ function renderDashboard(data) {
   renderPhone(data.battery, data.charging);
   renderBatteryWarning(data.battery, data.charging);
   renderNotifications(data.notificationGroups);
+  latestDndEnabled = data.dndEnabled;
+  renderDnd(data.dndEnabled);
   renderSchedule(data.calendar, data.calendarShowsTomorrow);
   renderBedsideTomorrow(data);
   renderAlarm(data.nextAlarm);
@@ -1991,6 +2012,52 @@ function startAmbientPhotoCycle() {
   ambientCycleHandle = setInterval(showNextAmbientPhoto, AMBIENT_PHOTO_INTERVAL_MS);
 }
 
+// Dashboard wallpaper - same photo library and crossfade technique as
+// Ambient Mode just above, but its own index/timer, much slower (this is
+// glanced at while actually using the dashboard, not stared at idle), and
+// re-extracts the accent color (see extractWallpaperAccentColor() earlier
+// in this file) on every swap.
+const WALLPAPER_ROTATION_INTERVAL_MS = 5 * 60 * 1000;
+
+let wallpaperPhotoIndex = -1;
+let wallpaperActiveLayer = "a";
+
+async function showNextWallpaperPhoto() {
+  if (ambientPhotoIds.length === 0) return;
+  wallpaperPhotoIndex = (wallpaperPhotoIndex + 1) % ambientPhotoIds.length;
+  const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(ambientPhotoIds[wallpaperPhotoIndex])}`;
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  const loaded = await new Promise((resolve) => {
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+  if (!loaded) return;
+
+  const nextLayer = byId(wallpaperActiveLayer === "a" ? "wallpaper-bg-b" : "wallpaper-bg-a");
+  const prevLayer = byId(wallpaperActiveLayer === "a" ? "wallpaper-bg-a" : "wallpaper-bg-b");
+  if (!nextLayer || !prevLayer) return;
+
+  nextLayer.style.backgroundImage = `url("${url}")`;
+  nextLayer.classList.add("visible");
+  prevLayer.classList.remove("visible");
+  wallpaperActiveLayer = wallpaperActiveLayer === "a" ? "b" : "a";
+
+  wallpaperAccentColor = extractWallpaperAccentColor(img);
+  if (wallpaperAccentColor) {
+    document.documentElement.style.setProperty("--accent", wallpaperAccentColor);
+  }
+}
+
+async function startWallpaperRotation() {
+  await ensureAmbientPhotosLoaded();
+  if (ambientPhotoIds.length === 0) return; // No photos configured - leave the layer empty.
+  showNextWallpaperPhoto();
+  setInterval(showNextWallpaperPhoto, WALLPAPER_ROTATION_INTERVAL_MS);
+}
+
 async function enterAmbientMode() {
   if (document.body.classList.contains("bedside-active")) return;
   await ensureAmbientPhotosLoaded();
@@ -2068,8 +2135,9 @@ function init() {
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();
   setupNotificationClearButtons();
+  setupDndToggle();
   ensureSoundLibraryLoaded();
-  ensureWallpaperLoaded();
+  startWallpaperRotation();
   startClock();
   startPolling();
 }

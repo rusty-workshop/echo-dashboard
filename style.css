@@ -1254,11 +1254,12 @@ input {
 
 /* Dimmer than the ordinary night-mode dim (--dimmed below) - Bedside Mode
    is an explicit "I'm going to sleep now" action, not just "it's dark
-   out". Specificity (two classes) beats .dimmed alone regardless of
-   which class was toggled last. */
+   out". Driven by a custom property (default 50%) so the brightness
+   slider in the overlay can adjust it live - see setBedsideBrightness()
+   in script.js. */
 body.dimmed.bedside-active,
 body.bedside-active {
-  filter: brightness(0.1) !important;
+  filter: brightness(var(--bedside-brightness, 0.5)) !important;
 }
 
 /* ---- Page dots --------------------------------------------------------------

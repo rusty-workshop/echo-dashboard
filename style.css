@@ -839,6 +839,205 @@ input {
   height: clamp(3.2rem, 7vw, 4.2rem);
 }
 
+/* ---- Page 5: Wake Alarms ---------------------------------------------------
+   Aurora's own alarm clock, set and edited right here rather than on the
+   phone - a bedside display is the natural place to manage a bedside
+   alarm. Existing list items scroll if there are many; the add-alarm form
+   stays pinned at the bottom. */
+
+.page-alarms {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.6rem, 1.5vh, 1rem);
+}
+
+.alarms-page-title {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+}
+
+.wakealarm-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.wakealarm-empty {
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+}
+
+.wakealarm-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 0.6em 0.9em;
+}
+
+.wakealarm-item.disabled {
+  opacity: 0.45;
+}
+
+.wakealarm-toggle {
+  flex: none;
+  width: 1.3em;
+  height: 1.3em;
+  accent-color: var(--accent);
+}
+
+.wakealarm-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+.wakealarm-item-time {
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.wakealarm-item-days {
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+}
+
+.wakealarm-delete {
+  flex: none;
+  width: clamp(1.9rem, 3.5vw, 2.3rem);
+  height: clamp(1.9rem, 3.5vw, 2.3rem);
+}
+
+.wakealarm-form {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 0.7em 0.9em;
+}
+
+.wakealarm-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.wakealarm-time-input {
+  flex: none;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  padding: 0.35em 0.5em;
+  font-size: var(--fs-caption);
+}
+
+.wakealarm-days {
+  flex: 1;
+  display: flex;
+  gap: 0.35em;
+}
+
+.wakealarm-day-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4em 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--divider);
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-color);
+}
+
+.wakealarm-day-btn.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
+/* ---- Alarm ringing overlay --------------------------------------------------
+   The one place this whole dashboard is allowed to be loud - covers every
+   page, since the point is to be impossible to miss regardless of which
+   page was showing when it fires. See reconcileWakeAlarm() in script.js. */
+
+.alarm-ringing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  background: var(--bg);
+  animation: alarm-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes alarm-pulse {
+  0%, 100% {
+    background: var(--bg);
+  }
+  50% {
+    background: color-mix(in srgb, var(--accent-danger) 25%, var(--bg));
+  }
+}
+
+.alarm-ringing-time {
+  font-size: var(--fs-clock-huge);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.alarm-ringing-label {
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+.alarm-ringing-actions {
+  display: flex;
+  gap: 1em;
+  margin-top: 1em;
+}
+
+.alarm-action-btn {
+  padding: 0.8em 2em;
+  border-radius: var(--radius-lg);
+  border: none;
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alarm-snooze-btn {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.alarm-dismiss-btn {
+  background: var(--accent-danger);
+  color: var(--bg);
+}
+
 /* ---- Page dots --------------------------------------------------------------
    Small, low-contrast, fixed at the bottom center over whichever page is
    showing - a quiet reminder that this is swipeable, and a tap target for

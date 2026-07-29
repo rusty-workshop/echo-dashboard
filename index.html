@@ -31,12 +31,15 @@
     function per widget in script.js updates both ids. Four fixed pages
     is a small, closed set - not worth abstracting over.
   -->
-  <!-- The dashboard's wallpaper (see ensureWallpaperLoaded() in script.js) -
-       behind weather-bg so its ambient animated effects (rain, snow,
-       stars, ...) still layer on top of it. A dark scrim keeps card text
-       legible over an arbitrary photo; absent entirely (no background at
-       all here) until a wallpaper is actually set. -->
+  <!-- The dashboard's wallpaper (see startWallpaperRotation() in
+       script.js) - behind weather-bg so its ambient animated effects
+       (rain, snow, stars, ...) still layer on top of it. Cycles through
+       the same photo library Ambient Mode uses; empty (no photos
+       configured) shows nothing here at all. A dark scrim keeps card text
+       legible over an arbitrary photo. -->
   <div class="wallpaper-bg" id="wallpaper-bg" aria-hidden="true">
+    <div class="wallpaper-photo-layer" id="wallpaper-bg-a"></div>
+    <div class="wallpaper-photo-layer" id="wallpaper-bg-b"></div>
     <div class="wallpaper-scrim"></div>
   </div>
   <div class="weather-bg" id="weather-bg" aria-hidden="true"></div>
@@ -117,6 +120,9 @@
           <h2 class="card-title">
             <span class="icon-slot small" id="notifications-title-icon" aria-hidden="true"></span>
             Notifications
+            <button class="notif-clear-btn" id="dnd-toggle-btn" type="button" aria-label="Toggle Do Not Disturb" aria-pressed="false">
+              <span class="icon-slot small" id="dnd-toggle-icon" aria-hidden="true"></span>
+            </button>
             <button class="notif-clear-btn" id="notif-clear-btn" type="button" aria-label="Clear all notifications">
               <span class="icon-slot small" id="notif-clear-icon" aria-hidden="true"></span>
             </button>
@@ -203,6 +209,9 @@
           <h2 class="panel-title">
             <span class="icon-slot small" id="notifications-title-icon-lg" aria-hidden="true"></span>
             Notifications
+            <button class="notif-clear-btn" id="dnd-toggle-btn-lg" type="button" aria-label="Toggle Do Not Disturb" aria-pressed="false">
+              <span class="icon-slot small" id="dnd-toggle-icon-lg" aria-hidden="true"></span>
+            </button>
             <button class="notif-clear-btn" id="notif-clear-btn-lg" type="button" aria-label="Clear all notifications">
               <span class="icon-slot small" id="notif-clear-icon-lg" aria-hidden="true"></span>
             </button>

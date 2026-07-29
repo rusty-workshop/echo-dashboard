@@ -371,6 +371,13 @@ input {
   color: var(--text-primary);
 }
 
+/* The DND toggle re-uses .notif-clear-btn's shape - this just adds a
+   persistent "on" indicator distinct from the momentary :active press
+   state above. */
+.notif-clear-btn.dnd-active {
+  color: var(--accent);
+}
+
 .card-body {
   display: flex;
   flex-direction: column;
@@ -1452,18 +1459,32 @@ body.ambient-active {
 }
 
 /* ---- Dashboard wallpaper -----------------------------------------------
-   Empty (no background-image at all) until ensureWallpaperLoaded() in
-   script.js sets one - a single fixed layer one z-index below the weather
-   background, so rain/snow/stars/etc. still animate on top of it. The
-   scrim keeps card text legible against an arbitrary photo without
-   needing to know anything about that photo. */
+   Empty (no photos configured) until startWallpaperRotation() in script.js
+   has something to show - one z-index below the weather background, so
+   rain/snow/stars/etc. still animate on top of it. Two stacked layers
+   crossfade between photos (same technique as Ambient Mode's
+   .ambient-photo-layer) on their own slower rotation. The scrim keeps
+   card text legible against an arbitrary photo without needing to know
+   anything about that photo. */
 
 .wallpaper-bg {
   position: fixed;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
+}
+
+.wallpaper-photo-layer {
+  position: absolute;
+  inset: 0;
   background-size: cover;
   background-position: center;
+  opacity: 0;
+  transition: opacity 2.5s ease;
+}
+
+.wallpaper-photo-layer.visible {
+  opacity: 1;
 }
 
 .wallpaper-scrim {

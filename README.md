@@ -49,10 +49,13 @@ however you like, right down to matching your own wallpaper's colors.
   weather line, dimmed — cycling your Aurora-picked photos with a slow
   crossfade, or a twinkling starfield if you haven't picked any yet. Any
   touch exits it instantly.
-- **Rotating main-UI wallpaper**: the same photo library you pick for
-  Ambient Mode also cycles slowly behind the main dashboard (scrimmed for
-  legibility), crossfading every few minutes; its dominant color, extracted
-  client-side, becomes the dashboard's accent color, taking over from the
+- **Configurable main-UI wallpaper**: the same photo library you pick for
+  Ambient Mode drives the main dashboard's background too (scrimmed for
+  legibility) — pick from the Aurora phone app whether it rotates the
+  whole library slowly (the default), locks to one fixed photo, or
+  follows a time-of-day schedule you build there with real thumbnails and
+  a time picker. Whichever photo's showing, its dominant color (extracted
+  client-side) becomes the dashboard's accent color, taking over from the
   weather-driven default.
 - **Do Not Disturb toggle**: silence the phone straight from the
   Notifications card — it flips Android's real system DND, so calls and

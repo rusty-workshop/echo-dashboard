@@ -1262,6 +1262,82 @@ body.bedside-active {
   filter: brightness(var(--bedside-brightness, 0.5)) !important;
 }
 
+/* ---- Ambient Mode ------------------------------------------------------------
+   A screensaver-style idle view (see setupAmbientMode() in script.js):
+   huge clock, tiny weather, very dim, the user's photos cycling with a
+   slow crossfade over two stacked layers, or the same twinkling starfield
+   the "Night" weather background uses (see .weather-bg--night::before)
+   if no photos are configured. */
+
+.ambient-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background: #000000;
+}
+
+.ambient-photo-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 2.5s ease;
+}
+
+.ambient-photo-layer.visible {
+  opacity: 1;
+}
+
+.ambient-starfield {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.ambient-starfield.active {
+  display: block;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.8) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
+  background-size: 140px 140px, 90px 90px;
+  background-position: 10px 20px, 60px 80px;
+  animation: bg-star-twinkle 5s ease-in-out infinite;
+}
+
+.ambient-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.ambient-clock {
+  font-size: clamp(5rem, 20vw, 9rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ambient-weather {
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+/* Independently dimmable from Bedside Mode's own brightness (idle
+   ambient viewing vs. "going to sleep" are different enough moments that
+   they shouldn't have to share one brightness value). */
+body.dimmed.ambient-active,
+body.ambient-active {
+  filter: brightness(var(--ambient-brightness, 0.3)) !important;
+}
+
 /* ---- Page dots --------------------------------------------------------------
    Small, low-contrast, fixed at the bottom center over whichever page is
    showing - a quiet reminder that this is swipeable, and a tap target for

@@ -686,6 +686,7 @@ function renderDashboard(data) {
   renderAlarm(data.nextAlarm);
   renderSoundMachine(data.soundMachine);
   renderWakeAlarms(data.wakeAlarms);
+  syncDefaultAlarmSoundPicker(data.defaultAlarmSoundId);
   reconcileWakeAlarm(data.wakeAlarmRinging);
 }
 
@@ -960,7 +961,8 @@ async function ensureSoundLibraryLoaded() {
   const picker = byId("sound-picker");
   const pickerLg = byId("sound-picker-lg");
   const wakeAlarmPicker = byId("wakealarm-sound-picker");
-  if (!picker && !pickerLg && !wakeAlarmPicker) return;
+  const defaultAlarmSoundPicker = byId("wakealarm-default-sound-picker");
+  if (!picker && !pickerLg && !wakeAlarmPicker && !defaultAlarmSoundPicker) return;
 
   try {
     const response = await fetch(`${AURORA_BASE_URL}/sound/library`, { cache: "no-store" });
@@ -971,10 +973,13 @@ async function ensureSoundLibraryLoaded() {
       .join("");
     if (picker) picker.innerHTML = optionsHtml;
     if (pickerLg) pickerLg.innerHTML = optionsHtml;
-    // Alarms fall back to the library's own default when nothing's chosen
+    // Alarms fall back to the default alarm sound when nothing's chosen
     // (see WakeAlarm.soundId), so this picker gets an explicit "Default"
     // option the ambient pickers above don't need.
     if (wakeAlarmPicker) wakeAlarmPicker.innerHTML = `<option value="">Default</option>${optionsHtml}`;
+    // The default-sound picker itself has no "Default" option - it IS the
+    // thing being set.
+    if (defaultAlarmSoundPicker) defaultAlarmSoundPicker.innerHTML = optionsHtml;
     soundLibraryLoaded = entries.length > 0;
   } catch (err) {
     // Aurora unreachable at startup - retried after the next successful poll.
@@ -1159,11 +1164,28 @@ function setWakeAlarm(alarm) {
   return postSoundAction(`/wakealarms/set?${params.toString()}`).then(poll);
 }
 
+/** Reflects Aurora's currently-configured default alarm sound in the
+ *  picker, unless the user is mid-selection (same "don't fight an active
+ *  interaction" rule as syncRangeInputIfIdle/syncPickerIfIdle above) -
+ *  this one syncs by option value (a sound id) rather than display name,
+ *  since data.defaultAlarmSoundId is already an id, not a name to resolve. */
+function syncDefaultAlarmSoundPicker(defaultAlarmSoundId) {
+  const picker = byId("wakealarm-default-sound-picker");
+  if (!picker || document.activeElement === picker || !defaultAlarmSoundId) return;
+  if ([...picker.options].some((opt) => opt.value === defaultAlarmSoundId)) {
+    picker.value = defaultAlarmSoundId;
+  }
+}
+
 function setupWakeAlarmForm() {
   setIcon("wakealarms-title-icon", "alarm");
   setIcon("wakealarm-add-icon", "plus");
   buildWakeAlarmDayToggle();
   setupWakeAlarmList();
+
+  byId("wakealarm-default-sound-picker")?.addEventListener("change", (event) => {
+    postSoundAction(`/wakealarms/default-sound?id=${encodeURIComponent(event.target.value)}`);
+  });
 
   byId("wakealarm-add-btn")?.addEventListener("click", () => {
     const timeInput = byId("wakealarm-time-input");
@@ -1250,6 +1272,11 @@ function stopWakeAlarmSound() {
   wakeAlarmSource = null;
 }
 
+// Last-resort only - Aurora now always resolves a concrete soundId before
+// an alarm rings (the alarm's own sound, falling back to the configured
+// default alarm sound, falling back to the sound library's first entry -
+// see WakeAlarmRepositoryImpl.handleFired()). This should never actually
+// fire in practice.
 const DEFAULT_ALARM_SOUND_ID = "rain";
 
 function showAlarmRingingOverlay(label) {

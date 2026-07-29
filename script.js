@@ -478,9 +478,10 @@ function updateClock() {
   const timeText = `${hour}:${minute} ${period}`;
   const monthdayText = `${month} ${day}`;
 
-  // The clock appears three times - compact on the Morning Overview page,
-  // huge on the dedicated Clock/Sound page, and huge again in Bedside
-  // Mode - so all three sets of ids get every tick.
+  // The clock appears four times - compact on the Morning Overview page,
+  // huge on the dedicated Clock/Sound page, huge again in Bedside Mode,
+  // and huge (time only, no date) in Ambient Mode - so all four get
+  // every tick.
   setText("clock-time", timeText);
   setText("clock-weekday", weekday);
   setText("clock-monthday", monthdayText);
@@ -490,6 +491,7 @@ function updateClock() {
   setText("clock-time-bedside", timeText);
   setText("clock-weekday-bedside", weekday);
   setText("clock-monthday-bedside", monthdayText);
+  setText("clock-time-ambient", timeText);
   if (isAlarmRinging) setText("alarm-ringing-time", timeText);
 
   updateStatusLine();
@@ -557,6 +559,12 @@ function renderWeather(weather) {
   // Drives applyDayNightMode()'s dim/brighten thresholds too.
   latestSunrise = weather.sunrise || null;
   latestSunset = weather.sunset || null;
+}
+
+/** Ambient Mode's "tiny weather" line - just a plain text summary, not
+ *  the full icon/high/low card treatment the other pages use. */
+function renderAmbientWeather(weather) {
+  setText("ambient-weather", weather ? `${Math.round(weather.temperature)}° ${weather.condition}` : "");
 }
 
 function renderBatteryWarning(battery, charging) {
@@ -830,6 +838,7 @@ function renderDashboard(data) {
   applyTileLayout(data.layout && data.layout.length > 0 ? data.layout : DEFAULT_TILE_LAYOUT);
   renderMorningBriefing(data);
   renderWeather(data.weather);
+  renderAmbientWeather(data.weather);
   renderPhone(data.battery, data.charging);
   renderBatteryWarning(data.battery, data.charging);
   renderNotifications(data.notificationGroups);
@@ -1730,6 +1739,12 @@ function setBedsideBrightness(percent) {
 }
 
 async function enterBedsideMode() {
+  // Mutually exclusive with Ambient Mode - see setupAmbientMode()'s doc
+  // comment for why idle-triggered ambient viewing never fires while
+  // this deliberate "going to sleep" mode is active.
+  exitAmbientMode();
+  clearTimeout(ambientIdleTimer);
+
   byId("bedside-overlay")?.classList.remove("hidden");
   document.body.classList.add("bedside-active");
 
@@ -1749,6 +1764,7 @@ async function enterBedsideMode() {
 function exitBedsideMode() {
   byId("bedside-overlay")?.classList.add("hidden");
   document.body.classList.remove("bedside-active");
+  resetAmbientIdleTimer();
 }
 
 function setupBedsideMode() {
@@ -1760,6 +1776,130 @@ function setupBedsideMode() {
   byId("bedside-brightness-slider")?.addEventListener("input", (event) => {
     setBedsideBrightness(Number(event.target.value));
   });
+}
+
+// ---------------------------------------------------------------------------
+// Ambient Mode - a screensaver-style idle view: after 30 minutes with no
+// touch anywhere on the dashboard, it takes over with a huge clock, a
+// tiny weather line, and the user's photos cycling with a slow crossfade
+// (Aurora's Photo Picker - see PhotoRepository there) - or the same
+// twinkling starfield the "Night" weather background uses, if no photos
+// are configured yet. Any touch exits it immediately. Never triggers
+// while Bedside Mode is active - that's already a deliberate minimal
+// state, not an idle one.
+// ---------------------------------------------------------------------------
+
+const AMBIENT_IDLE_MS = 30 * 60 * 1000;
+const AMBIENT_PHOTO_INTERVAL_MS = 30 * 1000;
+const AMBIENT_DEFAULT_BRIGHTNESS_PERCENT = 30;
+
+let ambientIdleTimer = null;
+let ambientPhotoIds = [];
+let ambientPhotosLoaded = false;
+let ambientCycleHandle = null;
+let ambientPhotoIndex = -1;
+let ambientActiveLayer = "a";
+
+async function ensureAmbientPhotosLoaded() {
+  if (ambientPhotosLoaded) return;
+  try {
+    const response = await fetch(`${AURORA_BASE_URL}/photos/library`, { cache: "no-store" });
+    if (!response.ok) return;
+    const entries = await response.json();
+    ambientPhotoIds = entries.map((entry) => entry.id);
+    ambientPhotosLoaded = true;
+  } catch (err) {
+    // Aurora unreachable - the starfield fallback covers this gracefully.
+  }
+}
+
+function preloadImage(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
+/** Crossfades to the next photo across two stacked layers - preloads
+ *  before swapping so a slow/failed fetch never shows a blank frame. */
+async function showNextAmbientPhoto() {
+  if (ambientPhotoIds.length === 0) return;
+  ambientPhotoIndex = (ambientPhotoIndex + 1) % ambientPhotoIds.length;
+  const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(ambientPhotoIds[ambientPhotoIndex])}`;
+  const loaded = await preloadImage(url);
+  if (!loaded) return;
+
+  const nextLayer = byId(ambientActiveLayer === "a" ? "ambient-photo-b" : "ambient-photo-a");
+  const prevLayer = byId(ambientActiveLayer === "a" ? "ambient-photo-a" : "ambient-photo-b");
+  if (!nextLayer || !prevLayer) return;
+
+  nextLayer.style.backgroundImage = `url("${url}")`;
+  nextLayer.classList.add("visible");
+  prevLayer.classList.remove("visible");
+  ambientActiveLayer = ambientActiveLayer === "a" ? "b" : "a";
+}
+
+function stopAmbientPhotoCycle() {
+  clearInterval(ambientCycleHandle);
+  ambientCycleHandle = null;
+}
+
+function startAmbientPhotoCycle() {
+  stopAmbientPhotoCycle();
+  if (ambientPhotoIds.length === 0) return;
+  showNextAmbientPhoto();
+  ambientCycleHandle = setInterval(showNextAmbientPhoto, AMBIENT_PHOTO_INTERVAL_MS);
+}
+
+async function enterAmbientMode() {
+  if (document.body.classList.contains("bedside-active")) return;
+  await ensureAmbientPhotosLoaded();
+
+  byId("ambient-overlay")?.classList.remove("hidden");
+  document.body.classList.add("ambient-active");
+  document.documentElement.style.setProperty(
+    "--ambient-brightness",
+    String(AMBIENT_DEFAULT_BRIGHTNESS_PERCENT / 100)
+  );
+
+  byId("ambient-starfield")?.classList.toggle("active", ambientPhotoIds.length === 0);
+  startAmbientPhotoCycle();
+}
+
+function exitAmbientMode() {
+  byId("ambient-overlay")?.classList.add("hidden");
+  document.body.classList.remove("ambient-active");
+  stopAmbientPhotoCycle();
+}
+
+function isAmbientModeActive() {
+  return !(byId("ambient-overlay")?.classList.contains("hidden") ?? true);
+}
+
+function resetAmbientIdleTimer() {
+  clearTimeout(ambientIdleTimer);
+  ambientIdleTimer = setTimeout(() => {
+    if (!document.body.classList.contains("bedside-active")) enterAmbientMode();
+  }, AMBIENT_IDLE_MS);
+}
+
+function setupAmbientMode() {
+  if (!byId("ambient-overlay")) return;
+
+  ["pointerdown", "keydown"].forEach((eventName) => {
+    document.addEventListener(
+      eventName,
+      () => {
+        if (isAmbientModeActive()) exitAmbientMode();
+        resetAmbientIdleTimer();
+      },
+      { passive: true }
+    );
+  });
+
+  resetAmbientIdleTimer();
 }
 
 // ---------------------------------------------------------------------------
@@ -1785,6 +1925,7 @@ function init() {
   setupPageScrollEffect();
   setupThemePicker();
   setupBedsideMode();
+  setupAmbientMode();
   setupSoundControls();
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();

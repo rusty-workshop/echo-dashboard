@@ -465,6 +465,21 @@
     </section>
   </div>
 
+  <!-- Ambient Mode - a screensaver-style idle view (see setupAmbientMode()
+       in script.js): huge clock, tiny weather, very dim, photos cycling
+       with a slow crossfade (or a twinkling starfield if none are
+       configured yet). Any touch exits it. -->
+  <div class="ambient-overlay hidden" id="ambient-overlay" aria-label="Ambient Mode">
+    <div class="ambient-photo-layer" id="ambient-photo-a"></div>
+    <div class="ambient-photo-layer" id="ambient-photo-b"></div>
+    <div class="ambient-starfield" id="ambient-starfield"></div>
+
+    <div class="ambient-content">
+      <div class="ambient-clock" id="clock-time-ambient">--:--</div>
+      <div class="ambient-weather" id="ambient-weather"></div>
+    </div>
+  </div>
+
   <script src="script.js"></script>
 </body>
 </html>

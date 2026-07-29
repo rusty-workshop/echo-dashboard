@@ -6,10 +6,11 @@
 
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
-`node_modules`. It pulls from [**Aurora**](https://github.com/rustyisacat/Aurora) v2.0, a
+`node_modules`. It pulls from [**Aurora**](https://github.com/rustyisacat/Aurora) v3.0, a
 companion Android app, over your home Wi-Fi and turns an old smart display
 into a self-hosted phone status board, morning briefing, bedside alarm
-clock, and bedside sound machine.
+clock, bedside sound machine, and an idle-screensaver photo frame — themed
+however you like, right down to matching your own wallpaper's colors.
 
 <p align="center">
   <img src="docs/screenshot-overview.png" width="49%" alt="Morning Overview page" />
@@ -18,9 +19,12 @@ clock, and bedside sound machine.
 
 ## Features
 
-- **Five swipeable pages** (CSS scroll-snap, real touch scrolling, tap-to-jump
+- **Six swipeable pages** (CSS scroll-snap, real touch scrolling, tap-to-jump
   dot indicators): a Morning Overview, a dedicated Phone page, a Daily Info
-  page, a Clock/Alarm/Sound Machine page, and a Wake Alarms page.
+  page, a Clock/Alarm/Sound Machine page, a Wake Alarms page, and a
+  Settings page for picking a theme. Two more full-screen views live
+  outside that swipeable set entirely, summoned rather than swiped to —
+  see Bedside Mode and Ambient Mode below.
 - **Morning Briefing**: a one-glance sentence composed client-side from
   weather, calendar, notifications, and battery — no extra backend needed.
 - **Wake Alarms**: set, edit, and delete Aurora's own alarms right from
@@ -33,6 +37,32 @@ clock, and bedside sound machine.
   gaplessly via the Web Audio API and played through the display's own
   speakers — control it from the dashboard itself or from the Aurora phone
   app, they stay in sync.
+- **Bedside Mode**: one tap (the moon icon next to the clock) starts rain,
+  dims the display to a comfortable 50% (adjustable live via an on-screen
+  slider), and arms any disabled wake alarms — then summons a dedicated
+  full-screen view with a huge centered clock, tomorrow's first event, and
+  the Sound Machine controls, until you tap the exit button.
+- **Ambient Mode**: after 30 minutes with no touch (never while Bedside
+  Mode is active), a screensaver-style view takes over — huge clock, tiny
+  weather line, dimmed — cycling your Aurora-picked photos with a slow
+  crossfade, or a twinkling starfield if you haven't picked any yet. Any
+  touch exits it instantly.
+- **8 Dashboard Themes** (Material You, Nothing OS, Pixel, Retro CRT, OLED
+  Minimal, Catppuccin, Nord, Gruvbox), switchable from the Settings page —
+  each swaps palette, typography, shape, and shadow style over the same
+  shared layout, no separate frontends to maintain.
+- **Dashboard wallpaper with matching accent color**: pick a photo from
+  the Aurora app and it shows behind the whole main dashboard (scrimmed
+  for legibility); its dominant color, extracted client-side, becomes the
+  dashboard's accent color, taking over from the weather-driven default.
+- **Animated weather backgrounds**: a subtle, condition-specific ambient
+  layer behind every page — sun glow, drifting clouds, falling rain or
+  snow, thunderstorm flashes, or a starfield at night — all CSS, no JS
+  per-frame cost.
+- **Polish animations throughout**: rolling numbers for temperature and
+  battery, a filling battery gauge, a weather-icon transition on change, a
+  scroll-driven page-transition effect while swiping, and a livelier
+  alarm-ringing pulse.
 - **Low battery banner**: a red warning appears on the Overview page if
   the phone is genuinely low and not charging — a bedside device dying
   overnight defeats the point.
@@ -43,15 +73,21 @@ clock, and bedside sound machine.
 - **Customizable layout**: the Morning Overview's card order, visibility,
   and size are controlled from the Aurora phone app and picked up here
   automatically, no code changes needed.
-- **Dynamic accent color** that shifts with the current weather condition.
+- **Dynamic accent color** that shifts with the current weather condition
+  by default, or follows your wallpaper's colors once you've set one (see
+  above) — every theme keeps this behavior, it's not something themes
+  override.
 - **Resilient by default**: the last good response is cached and shown
   immediately on load, survives Aurora going offline, and quietly shows a
   reconnecting/offline status instead of ever going blank.
 
 ## Requirements
 
-- [Aurora](https://github.com/rustyisacat/Aurora) v2.0+ running on a phone on the
-  same Wi-Fi network as whatever device will display this.
+- [Aurora](https://github.com/rustyisacat/Aurora) v3.0+ running on a phone on the
+  same Wi-Fi network as whatever device will display this. Ambient Mode's
+  photo rotation and the dashboard wallpaper both need Aurora v3.0
+  specifically (earlier versions don't have the Photo Picker endpoints);
+  everything else works against v2.0 too.
 - Any modern browser. Built and tested for a kiosk browser (e.g.
   [Fully Kiosk Browser](https://www.fully-kiosk.com/)) on a rooted/sideloaded
   Amazon Echo Show 5 (1st gen), but nothing here is Echo-Show-specific —
@@ -128,6 +164,10 @@ No build tools, no package manager, no dependencies: just `index.html`,
   whole display reboots) notices and resumes it automatically. A ringing
   Wake Alarm is reconciled the same way, so a reload that happens to land
   mid-ring picks it right back up.
+- **Theme choice persists locally** (`localStorage`, applied synchronously
+  before the page paints, so there's no flash of the wrong theme on
+  reload) — it's a display preference, not something Aurora needs to know
+  about.
 
 ## Adding a new card
 

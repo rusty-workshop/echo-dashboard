@@ -861,6 +861,25 @@ input {
   font-weight: 600;
 }
 
+.wakealarm-default-sound-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+}
+
+.wakealarm-default-sound-label {
+  flex: none;
+}
+
+.wakealarm-default-sound-row .sound-select {
+  flex: none;
+  max-width: 60%;
+}
+
 .wakealarm-list {
   flex: 1;
   min-height: 0;

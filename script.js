@@ -518,11 +518,9 @@ function renderNotifications(groups) {
 /**
  * "Clear All" dismisses every notification on the phone, the same as
  * swiping them from the notification shade - a real, immediate action on
- * the phone, not just clearing this display's own count. Always visible
- * on the dedicated Phone page's full panel; only shown on the compact
- * Overview card when its tile is sized "large" (see
- * updateNotifClearButtonVisibility) - a small/medium card doesn't have
- * room to make this an intentional tap instead of an easy mis-tap.
+ * the phone, not just clearing this display's own count. Shown on both
+ * the compact Overview card and the dedicated Phone page's full panel -
+ * the icon-only button is small enough to fit at any tile size.
  */
 function setupNotificationClearButtons() {
   setIcon("notif-clear-icon", "trash");
@@ -675,20 +673,9 @@ let lastAppliedLayoutJson = null;
  * so a routine 30s poll doesn't replay the card-fade-in animation or touch
  * the DOM for no reason.
  */
-// Clearing notifications from the compact Overview card only makes sense
-// with the extra room a "large" tile gives it - see updateNotifClearButtonVisibility().
-let notificationsTileSize = "medium";
-
-function updateNotifClearButtonVisibility() {
-  byId("notif-clear-btn")?.classList.toggle("hidden", notificationsTileSize !== "large");
-}
-
 function applyTileLayout(tiles) {
   const grid = document.querySelector(".card-grid");
   if (!grid) return;
-
-  notificationsTileSize = tiles.find((tile) => tile.id === "notifications")?.size || "medium";
-  updateNotifClearButtonVisibility();
 
   const layoutJson = JSON.stringify(tiles);
   if (layoutJson === lastAppliedLayoutJson) return;

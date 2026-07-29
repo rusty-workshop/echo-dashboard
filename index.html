@@ -265,6 +265,33 @@
         </div>
       </section>
     </section>
+
+    <!-- Page 5: Wake Alarms - Aurora's own alarm clock, not the phone's.
+         Rings right here on the Echo Show (see the full-screen ringing
+         overlay below, outside the pager so it can cover any page). -->
+    <section class="page page-alarms" id="page-alarms" aria-label="Wake Alarms">
+      <h2 class="alarms-page-title">
+        <span class="icon-slot" id="wakealarms-title-icon" aria-hidden="true"></span>
+        Wake Alarms
+      </h2>
+
+      <ul class="wakealarm-list" id="wakealarm-list">
+        <li class="wakealarm-empty">No alarms set</li>
+      </ul>
+
+      <div class="wakealarm-form">
+        <div class="wakealarm-form-row">
+          <input type="time" id="wakealarm-time-input" class="wakealarm-time-input" aria-label="Alarm time" />
+          <select class="sound-select" id="wakealarm-sound-picker" aria-label="Alarm sound"></select>
+        </div>
+        <div class="wakealarm-form-row">
+          <div class="wakealarm-days" id="wakealarm-days" role="group" aria-label="Repeat on"></div>
+          <button class="icon-button" id="wakealarm-add-btn" type="button" aria-label="Add alarm">
+            <span class="icon-slot" id="wakealarm-add-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </section>
   </div>
 
   <nav class="page-dots" id="page-dots" aria-label="Dashboard pages">
@@ -272,7 +299,20 @@
     <button class="page-dot" data-page="1" aria-label="Phone"></button>
     <button class="page-dot" data-page="2" aria-label="Daily Info"></button>
     <button class="page-dot" data-page="3" aria-label="Clock and Sound Machine"></button>
+    <button class="page-dot" data-page="4" aria-label="Wake Alarms"></button>
   </nav>
+
+  <!-- Outside the pager so it covers whichever page is active when an
+       alarm fires - see reconcileWakeAlarm() in script.js. -->
+  <div class="alarm-ringing-overlay hidden" id="alarm-ringing-overlay" role="alertdialog" aria-label="Alarm ringing">
+    <span class="icon-slot xlarge" id="alarm-ringing-icon" aria-hidden="true"></span>
+    <div class="alarm-ringing-time" id="alarm-ringing-time">--:--</div>
+    <div class="alarm-ringing-label" id="alarm-ringing-label"></div>
+    <div class="alarm-ringing-actions">
+      <button class="alarm-action-btn alarm-snooze-btn" id="alarm-snooze-btn" type="button">Snooze</button>
+      <button class="alarm-action-btn alarm-dismiss-btn" id="alarm-dismiss-btn" type="button">Dismiss</button>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>

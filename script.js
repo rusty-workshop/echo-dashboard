@@ -47,7 +47,7 @@ const LOW_BATTERY_THRESHOLD = 15;
 // missing a newer field (e.g. soundMachine) would otherwise crash the
 // renderer that expects it. A version bump just invalidates the old entry
 // instead of trying to migrate it.
-const CACHE_KEY = "aurora-dashboard:last-good-response:v4";
+const CACHE_KEY = "aurora-dashboard:last-good-response:v5";
 const HOST_OVERRIDE_KEY = "aurora-dashboard:host-override";
 
 // ---------------------------------------------------------------------------
@@ -145,6 +145,9 @@ const ICONS = {
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>',
+  trash:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
 };
 
 // ---------------------------------------------------------------------------
@@ -377,6 +380,7 @@ function updateClock() {
   setText("clock-time-lg", timeText);
   setText("clock-weekday-lg", weekday);
   setText("clock-monthday-lg", monthdayText);
+  if (isAlarmRinging) setText("alarm-ringing-time", timeText);
 
   updateStatusLine();
   applyDayNightMode();
@@ -681,6 +685,8 @@ function renderDashboard(data) {
   renderSchedule(data.calendar, data.calendarShowsTomorrow);
   renderAlarm(data.nextAlarm);
   renderSoundMachine(data.soundMachine);
+  renderWakeAlarms(data.wakeAlarms);
+  reconcileWakeAlarm(data.wakeAlarmRinging);
 }
 
 // ---------------------------------------------------------------------------
@@ -828,14 +834,20 @@ function setLocalVolume(percent) {
 document.addEventListener(
   "pointerdown",
   () => {
-    if (!audioContext || audioContext.state !== "suspended") return;
-    audioContext.resume().then(() => {
-      if (pendingAutoResume) {
-        const { soundId, offsetSeconds } = pendingAutoResume;
-        pendingAutoResume = null;
-        startLocalPlayback(soundId, offsetSeconds);
-      }
-    });
+    if (audioContext && audioContext.state === "suspended") {
+      audioContext.resume().then(() => {
+        if (pendingAutoResume) {
+          const { soundId, offsetSeconds } = pendingAutoResume;
+          pendingAutoResume = null;
+          startLocalPlayback(soundId, offsetSeconds);
+        }
+      });
+    }
+    // Same autoplay-policy unblock, for whichever alarm sound is currently
+    // supposed to be ringing but hasn't actually started yet.
+    if (isAlarmRinging && !wakeAlarmSource) {
+      startWakeAlarmSound(pendingAlarmSoundId);
+    }
   },
   { passive: true }
 );
@@ -895,6 +907,13 @@ function fadeOutAndStop() {
  */
 function reconcileSoundMachine(state) {
   if (!state) return;
+  // A ringing wake alarm always wins - reconcileWakeAlarm() already stops
+  // ambient playback (locally and on Aurora) the moment it starts ringing,
+  // but this guard is what stops it from ever starting back up mid-ring
+  // too, regardless of poll ordering (e.g. a fresh page load that hasn't
+  // played anything locally yet has nothing to stop, but must still not
+  // start).
+  if (isAlarmRinging) return;
 
   setLocalVolume(state.volume);
 
@@ -940,7 +959,8 @@ async function ensureSoundLibraryLoaded() {
   if (soundLibraryLoaded) return;
   const picker = byId("sound-picker");
   const pickerLg = byId("sound-picker-lg");
-  if (!picker && !pickerLg) return;
+  const wakeAlarmPicker = byId("wakealarm-sound-picker");
+  if (!picker && !pickerLg && !wakeAlarmPicker) return;
 
   try {
     const response = await fetch(`${AURORA_BASE_URL}/sound/library`, { cache: "no-store" });
@@ -951,6 +971,10 @@ async function ensureSoundLibraryLoaded() {
       .join("");
     if (picker) picker.innerHTML = optionsHtml;
     if (pickerLg) pickerLg.innerHTML = optionsHtml;
+    // Alarms fall back to the library's own default when nothing's chosen
+    // (see WakeAlarm.soundId), so this picker gets an explicit "Default"
+    // option the ambient pickers above don't need.
+    if (wakeAlarmPicker) wakeAlarmPicker.innerHTML = `<option value="">Default</option>${optionsHtml}`;
     soundLibraryLoaded = entries.length > 0;
   } catch (err) {
     // Aurora unreachable at startup - retried after the next successful poll.
@@ -1022,6 +1046,264 @@ function setupSoundControlsFor(idSuffix) {
 function setupSoundControls() {
   setupSoundControlsFor("");
   setupSoundControlsFor("-lg");
+}
+
+// ---------------------------------------------------------------------------
+// Wake Alarms - Aurora's own alarm clock rather than the phone's stock one
+// (see the "Page 5" comment in index.html for why). Two independent
+// pieces: managing the alarm list (this section), and actually ringing one
+// when Aurora says it's time (further below, next to the ambient sound
+// engine it borrows loadSoundBuffer()/AURORA_BASE_URL from).
+// ---------------------------------------------------------------------------
+
+const DAY_ABBREVIATIONS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]; // index 0 = Calendar.SUNDAY(1)
+
+let selectedWakeAlarmDays = new Set(); // Calendar.DAY_OF_WEEK values (1-7)
+
+function buildWakeAlarmDayToggle() {
+  const container = byId("wakealarm-days");
+  if (!container) return;
+
+  container.innerHTML = DAY_ABBREVIATIONS.map(
+    (abbrev, index) =>
+      `<button type="button" class="wakealarm-day-btn" data-day="${index + 1}" aria-label="${abbrev}">${abbrev[0]}</button>`
+  ).join("");
+
+  container.querySelectorAll(".wakealarm-day-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const day = Number(btn.dataset.day);
+      if (selectedWakeAlarmDays.has(day)) {
+        selectedWakeAlarmDays.delete(day);
+      } else {
+        selectedWakeAlarmDays.add(day);
+      }
+      btn.classList.toggle("active");
+    });
+  });
+}
+
+function formatWakeAlarmDays(daysOfWeek) {
+  if (!daysOfWeek || daysOfWeek.length === 0) return "Once";
+  if (daysOfWeek.length === 7) return "Every day";
+  return daysOfWeek
+    .slice()
+    .sort((a, b) => a - b)
+    .map((day) => DAY_ABBREVIATIONS[day - 1])
+    .join(", ");
+}
+
+function renderWakeAlarms(alarms) {
+  const list = byId("wakealarm-list");
+  if (!list) return;
+
+  if (!alarms || alarms.length === 0) {
+    list.innerHTML = '<li class="wakealarm-empty">No alarms set</li>';
+    return;
+  }
+
+  const sorted = alarms.slice().sort((a, b) => a.hour - b.hour || a.minute - b.minute);
+  list.innerHTML = sorted
+    .map((alarm) => {
+      const time = formatTime12h(`${String(alarm.hour).padStart(2, "0")}:${String(alarm.minute).padStart(2, "0")}`);
+      return `<li class="wakealarm-item${alarm.enabled ? "" : " disabled"}" data-id="${escapeHtml(alarm.id)}">
+        <input type="checkbox" class="wakealarm-toggle" ${alarm.enabled ? "checked" : ""} aria-label="Enabled" />
+        <div class="wakealarm-item-info">
+          <span class="wakealarm-item-time">${time}</span>
+          <span class="wakealarm-item-days">${escapeHtml(formatWakeAlarmDays(alarm.daysOfWeek))}</span>
+        </div>
+        <button class="icon-button wakealarm-delete" type="button" aria-label="Delete alarm">
+          <span class="icon-slot" aria-hidden="true">${ICONS.trash}</span>
+        </button>
+      </li>`;
+    })
+    .join("");
+
+  // Full alarm objects by id, so the enabled-toggle handler below can
+  // resend a complete WakeAlarm to /wakealarms/set (which upserts by id)
+  // without reconstructing every field from the DOM.
+  latestWakeAlarmsById = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+}
+
+let latestWakeAlarmsById = new Map();
+
+function setupWakeAlarmList() {
+  const list = byId("wakealarm-list");
+  if (!list) return;
+
+  list.addEventListener("change", (event) => {
+    if (!event.target.classList.contains("wakealarm-toggle")) return;
+    const id = event.target.closest("[data-id]")?.dataset.id;
+    const alarm = id && latestWakeAlarmsById.get(id);
+    if (!alarm) return;
+    setWakeAlarm({ ...alarm, enabled: event.target.checked });
+  });
+
+  list.addEventListener("click", (event) => {
+    if (!event.target.closest(".wakealarm-delete")) return;
+    const id = event.target.closest("[data-id]")?.dataset.id;
+    if (!id) return;
+    postSoundAction(`/wakealarms/delete?id=${encodeURIComponent(id)}`).then(poll);
+  });
+}
+
+function setWakeAlarm(alarm) {
+  const params = new URLSearchParams({
+    id: alarm.id || "",
+    hour: String(alarm.hour),
+    minute: String(alarm.minute),
+    days: (alarm.daysOfWeek || []).join(","),
+    enabled: String(alarm.enabled),
+    label: alarm.label || "",
+    soundId: alarm.soundId || "",
+  });
+  return postSoundAction(`/wakealarms/set?${params.toString()}`).then(poll);
+}
+
+function setupWakeAlarmForm() {
+  setIcon("wakealarms-title-icon", "alarm");
+  setIcon("wakealarm-add-icon", "plus");
+  buildWakeAlarmDayToggle();
+  setupWakeAlarmList();
+
+  byId("wakealarm-add-btn")?.addEventListener("click", () => {
+    const timeInput = byId("wakealarm-time-input");
+    const soundPicker = byId("wakealarm-sound-picker");
+    const [hour, minute] = (timeInput?.value || "").split(":").map(Number);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return;
+
+    setWakeAlarm({
+      id: null,
+      hour,
+      minute,
+      daysOfWeek: Array.from(selectedWakeAlarmDays),
+      enabled: true,
+      label: "",
+      soundId: soundPicker?.value || null,
+    });
+
+    selectedWakeAlarmDays = new Set();
+    byId("wakealarm-days")
+      ?.querySelectorAll(".wakealarm-day-btn.active")
+      .forEach((btn) => btn.classList.remove("active"));
+  });
+}
+
+// ---- Ringing --------------------------------------------------------------
+// A separate AudioContext/gain from the ambient sound engine below, on
+// purpose: an alarm needs to ring at a fixed, reliably loud volume
+// regardless of whatever the ambient volume slider is set to, and must
+// never be silently paused/overridden by reconcileSoundMachine()'s own
+// bookkeeping, which only knows about the ambient sound machine's state.
+
+let wakeAlarmAudioContext = null;
+let wakeAlarmGainNode = null;
+let wakeAlarmSource = null;
+let isAlarmRinging = false;
+let pendingAlarmSoundId = null; // set if starting was blocked by autoplay policy
+
+function ensureWakeAlarmAudioContext() {
+  if (!wakeAlarmAudioContext) {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    wakeAlarmAudioContext = new AudioContextCtor();
+    wakeAlarmGainNode = wakeAlarmAudioContext.createGain();
+    wakeAlarmGainNode.connect(wakeAlarmAudioContext.destination);
+    wakeAlarmGainNode.gain.value = 1;
+  }
+  return wakeAlarmAudioContext;
+}
+
+async function startWakeAlarmSound(soundId) {
+  const ctx = ensureWakeAlarmAudioContext();
+  if (ctx.state === "suspended") {
+    // Same autoplay-policy caveat as the ambient engine (see its comment
+    // above) - if this alarm is the very first audio this page ever tries
+    // to play with zero prior touches since load, the browser may block it
+    // until the next touch anywhere on the screen (see the shared
+    // pointerdown listener below).
+    await ctx.resume().catch(() => {});
+  }
+  if (ctx.state === "suspended") {
+    pendingAlarmSoundId = soundId;
+    return;
+  }
+
+  const buffer = await loadSoundBuffer(soundId || DEFAULT_ALARM_SOUND_ID);
+  stopWakeAlarmSound();
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  source.connect(wakeAlarmGainNode);
+  source.start(0);
+  wakeAlarmSource = source;
+  pendingAlarmSoundId = null;
+}
+
+function stopWakeAlarmSound() {
+  if (!wakeAlarmSource) return;
+  try {
+    wakeAlarmSource.stop();
+  } catch (err) {
+    // Already stopped - fine.
+  }
+  wakeAlarmSource.disconnect();
+  wakeAlarmSource = null;
+}
+
+const DEFAULT_ALARM_SOUND_ID = "rain";
+
+function showAlarmRingingOverlay(label) {
+  const overlay = byId("alarm-ringing-overlay");
+  if (!overlay) return;
+  setText("alarm-ringing-label", label || "Alarm");
+  overlay.classList.remove("hidden");
+}
+
+function hideAlarmRingingOverlay() {
+  byId("alarm-ringing-overlay")?.classList.add("hidden");
+}
+
+/**
+ * Reconciles local ringing state against Aurora's - same "poll drives
+ * reality" pattern as reconcileSoundMachine(), so a fresh page load or
+ * reboot that happens to land mid-ring picks the alarm right back up.
+ *
+ * Actually stops the ambient sound machine - locally, unconditionally on
+ * Aurora too via POST /sound/stop (not just when this page instance
+ * happened to be playing something locally - a fresh page load has
+ * nothing local to stop but Aurora's own reported state still needs to
+ * say "stopped", both so its own UI is honest about it and so
+ * reconcileSoundMachine() doesn't have stale "should be playing" state to
+ * act on once the alarm ends. reconcileSoundMachine() itself also refuses
+ * to start anything while isAlarmRinging is true (see its own guard),
+ * which is what actually prevents a same-cycle restart race - this stop
+ * call is about correctness of Aurora's reported state, not preventing
+ * the race by itself.
+ */
+function reconcileWakeAlarm(ringingState) {
+  const shouldRing = Boolean(ringingState && ringingState.ringing);
+
+  if (shouldRing && !isAlarmRinging) {
+    isAlarmRinging = true;
+    stopLocalPlaybackFully();
+    postSoundAction("/sound/stop");
+    startWakeAlarmSound(ringingState.soundId);
+    showAlarmRingingOverlay(ringingState.label);
+  } else if (!shouldRing && isAlarmRinging) {
+    isAlarmRinging = false;
+    stopWakeAlarmSound();
+    hideAlarmRingingOverlay();
+  }
+}
+
+function setupWakeAlarmRingingControls() {
+  setIcon("alarm-ringing-icon", "alarm");
+  byId("alarm-dismiss-btn")?.addEventListener("click", () => {
+    postSoundAction("/wakealarms/dismiss").then(poll);
+  });
+  byId("alarm-snooze-btn")?.addEventListener("click", () => {
+    postSoundAction("/wakealarms/snooze").then(poll);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1192,6 +1474,8 @@ function init() {
 
   setupPager();
   setupSoundControls();
+  setupWakeAlarmForm();
+  setupWakeAlarmRingingControls();
   ensureSoundLibraryLoaded();
   startClock();
   startPolling();

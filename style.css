@@ -1043,6 +1043,57 @@ input {
   border-color: var(--accent);
 }
 
+/* ---- Page 6: Settings -------------------------------------------------------
+   Just the theme picker for now. See setupThemePicker() in script.js and
+   the [data-theme] blocks near the end of this file - one shared layout,
+   swapped palette/typography/shape per theme. */
+
+.page-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-title {
+  font-size: var(--fs-display);
+  font-weight: 700;
+  margin: 0 0 clamp(0.6rem, 1.6vh, 1rem);
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(0.6rem, 1.6vw, 1rem);
+}
+
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.7em;
+  background: var(--surface);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-swatch.active {
+  border-color: var(--accent);
+  background: var(--surface-elevated);
+}
+
+.theme-swatch-preview {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-md);
+}
+
+.theme-swatch-label {
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+}
+
 /* ---- Alarm ringing overlay --------------------------------------------------
    The one place this whole dashboard is allowed to be loud - covers every
    page, since the point is to be impossible to miss regardless of which
@@ -1461,4 +1512,184 @@ input {
   .card-row {
     flex-direction: column;
   }
+}
+
+/* ---- Themes ------------------------------------------------------------
+   One shared layout/markup/script.js underneath every theme - each block
+   below just swaps palette/typography/shape/shadow variables (plus a
+   couple of decorative rules where a theme's identity needs more than a
+   variable swap). Selected via [data-theme] on <html>, set by
+   setupThemePicker() in script.js (and mirrored synchronously in
+   index.html's inline <head> script to avoid a flash of the wrong theme).
+
+   Deliberately NOT touched here: --accent's *dynamic* weather-driven
+   value (see applyAccentColor()/NIGHT_WEATHER_ACCENT in script.js), which
+   overrides these defaults live via an inline style on <html> regardless
+   of theme. Each theme's --accent below is just the fallback shown before
+   the first weather poll resolves - the weather-mood-color behavior is
+   intentionally shared across every theme, not something themes opt out
+   of. */
+
+[data-theme="materialyou"] {
+  --bg: #1c1b1f;
+  --surface: #272528;
+  --surface-elevated: #322f33;
+  --text-primary: #e6e1e5;
+  --text-secondary: #938f99;
+  --text-tertiary: #6f6a75;
+  --accent: #d0bcff;
+  --accent-gray: #938f99;
+  --divider: rgba(230, 225, 229, 0.1);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --radius-lg: 1.75rem;
+  --radius-md: 1.1rem;
+}
+
+[data-theme="nothingos"] {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-elevated: #141414;
+  --text-primary: #ffffff;
+  --text-secondary: #8a8a8a;
+  --text-tertiary: #545454;
+  --accent: #ffffff;
+  --accent-gray: #ffffff;
+  --divider: rgba(255, 255, 255, 0.14);
+  --shadow: none;
+  --radius-lg: 0.4rem;
+  --radius-md: 0.3rem;
+  --font: ui-monospace, "SF Mono", "Roboto Mono", "Droid Sans Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="nothingos"] .card {
+  border: 1px solid var(--divider);
+}
+
+[data-theme="nothingos"] .card-title {
+  letter-spacing: 0.12em;
+}
+
+[data-theme="nothingos"] .page-dot.active::before {
+  background: #d1223b !important;
+}
+
+[data-theme="pixel"] {
+  --bg: #131314;
+  --surface: #1e1f20;
+  --surface-elevated: #28292a;
+  --text-primary: #e3e3e3;
+  --text-secondary: #9aa0a6;
+  --text-tertiary: #5f6368;
+  --accent: #8ab4f8;
+  --accent-gray: #9aa0a6;
+  --divider: rgba(227, 227, 227, 0.1);
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  --radius-lg: 1.5rem;
+  --radius-md: 1rem;
+}
+
+[data-theme="retrocrt"] {
+  --bg: #020a02;
+  --surface: #04140a;
+  --surface-elevated: #082010;
+  --text-primary: #33ff66;
+  --text-secondary: #22b34a;
+  --text-tertiary: #157533;
+  --accent: #33ff66;
+  --accent-gray: #33ff66;
+  --divider: rgba(51, 255, 102, 0.2);
+  --shadow: none;
+  --radius-lg: 0.35rem;
+  --radius-md: 0.25rem;
+  --font: ui-monospace, "Roboto Mono", "Droid Sans Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="retrocrt"] body {
+  text-shadow: 0 0 4px currentColor;
+}
+
+[data-theme="retrocrt"] .card {
+  border: 1px solid var(--divider);
+}
+
+/* Scanline overlay - a plain striped semi-transparent layer, cheap to
+   paint since it never changes (no animation), sits above the pager
+   (z-index: 1) and weather backgrounds (z-index: 0) but below the alarm
+   overlay (z-index: 100) so an alarm is never dimmed by it. */
+html[data-theme="retrocrt"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.35) 0,
+    rgba(0, 0, 0, 0.35) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+[data-theme="oledminimal"] {
+  --bg: #000000;
+  --surface: #000000;
+  --surface-elevated: #000000;
+  --text-primary: #f0f0f0;
+  --text-secondary: #808080;
+  --text-tertiary: #4d4d4d;
+  --accent: #e0e0e0;
+  --accent-gray: #e0e0e0;
+  --divider: rgba(255, 255, 255, 0.12);
+  --shadow: none;
+  --radius-lg: 0.9rem;
+  --radius-md: 0.6rem;
+}
+
+[data-theme="oledminimal"] .card {
+  border: 1px solid var(--divider);
+}
+
+[data-theme="catppuccin"] {
+  --bg: #1e1e2e;
+  --surface: #181825;
+  --surface-elevated: #313244;
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-tertiary: #6c7086;
+  --accent: #cba6f7;
+  --accent-gray: #a6adc8;
+  --accent-blue: #89b4fa;
+  --divider: rgba(205, 214, 244, 0.1);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="nord"] {
+  --bg: #2e3440;
+  --surface: #3b4252;
+  --surface-elevated: #434c5e;
+  --text-primary: #eceff4;
+  --text-secondary: #d8dee9;
+  --text-tertiary: #7b8394;
+  --accent: #88c0d0;
+  --accent-gray: #d8dee9;
+  --accent-blue: #5e81ac;
+  --divider: rgba(236, 239, 244, 0.1);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="gruvbox"] {
+  --bg: #282828;
+  --surface: #3c3836;
+  --surface-elevated: #504945;
+  --text-primary: #ebdbb2;
+  --text-secondary: #bdae93;
+  --text-tertiary: #8a8374;
+  --accent: #fe8019;
+  --accent-gray: #bdae93;
+  --accent-blue: #83a598;
+  --divider: rgba(235, 219, 178, 0.12);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --radius-lg: 1rem;
+  --radius-md: 0.7rem;
 }

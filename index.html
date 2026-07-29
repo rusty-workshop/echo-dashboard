@@ -5,6 +5,14 @@
   <!-- Fixed kiosk display: no pinch-zoom, no accidental double-tap zoom. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Aurora Dashboard</title>
+  <script>
+    // Applied synchronously, before the stylesheet paints anything, so a
+    // saved theme choice never flashes the default look first.
+    (function () {
+      var theme = localStorage.getItem("echo-dashboard-theme");
+      if (theme && theme !== "default") document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -310,6 +318,53 @@
         </div>
       </div>
     </section>
+
+    <!-- Page 6: Settings - just the theme picker for now. One shared
+         layout/JS underneath every theme (see the [data-theme] blocks at
+         the end of style.css) - each swatch just swaps CSS variables and
+         a handful of signature rules, nothing here or in script.js
+         branches per theme. -->
+    <section class="page page-settings" id="page-settings" aria-label="Settings">
+      <h2 class="settings-title">Theme</h2>
+      <div class="theme-grid" id="theme-grid">
+        <button class="theme-swatch" data-theme-value="default" aria-label="Default theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #9aa5b1)"></span>
+          <span class="theme-swatch-label">Default</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="materialyou" aria-label="Material You theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #1c1b1f, #d0bcff)"></span>
+          <span class="theme-swatch-label">Material You</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="nothingos" aria-label="Nothing OS theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #d1223b)"></span>
+          <span class="theme-swatch-label">Nothing OS</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="pixel" aria-label="Pixel theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #131314, #8ab4f8)"></span>
+          <span class="theme-swatch-label">Pixel</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="retrocrt" aria-label="Retro CRT theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #020a02, #33ff66)"></span>
+          <span class="theme-swatch-label">Retro CRT</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="oledminimal" aria-label="OLED Minimal theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #e0e0e0)"></span>
+          <span class="theme-swatch-label">OLED Minimal</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="catppuccin" aria-label="Catppuccin theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #1e1e2e, #cba6f7)"></span>
+          <span class="theme-swatch-label">Catppuccin</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="nord" aria-label="Nord theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #2e3440, #88c0d0)"></span>
+          <span class="theme-swatch-label">Nord</span>
+        </button>
+        <button class="theme-swatch" data-theme-value="gruvbox" aria-label="Gruvbox theme">
+          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #282828, #fe8019)"></span>
+          <span class="theme-swatch-label">Gruvbox</span>
+        </button>
+      </div>
+    </section>
   </div>
 
   <nav class="page-dots" id="page-dots" aria-label="Dashboard pages">
@@ -318,6 +373,7 @@
     <button class="page-dot" data-page="2" aria-label="Daily Info"></button>
     <button class="page-dot" data-page="3" aria-label="Clock and Sound Machine"></button>
     <button class="page-dot" data-page="4" aria-label="Wake Alarms"></button>
+    <button class="page-dot" data-page="5" aria-label="Settings"></button>
   </nav>
 
   <!-- Outside the pager so it covers whichever page is active when an

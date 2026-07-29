@@ -1648,6 +1648,44 @@ function setupPageScrollEffect() {
 }
 
 // ---------------------------------------------------------------------------
+// Theme picker - one shared layout/markup for every theme; each theme is
+// just a [data-theme] CSS block (see the end of style.css) swapping
+// palette/typography/shape, not a different frontend. The actual
+// application already happened synchronously in index.html's inline
+// <head> script (to avoid a flash of the wrong theme on load) - this
+// just keeps the Settings page's swatches in sync and handles taps.
+// ---------------------------------------------------------------------------
+
+const THEME_STORAGE_KEY = "echo-dashboard-theme";
+
+function applyTheme(themeId) {
+  if (themeId && themeId !== "default") {
+    document.documentElement.dataset.theme = themeId;
+  } else {
+    delete document.documentElement.dataset.theme;
+    themeId = "default";
+  }
+  document.querySelectorAll(".theme-swatch").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.themeValue === themeId);
+  });
+}
+
+function setupThemePicker() {
+  const grid = byId("theme-grid");
+  if (!grid) return;
+
+  applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || "default");
+
+  grid.querySelectorAll(".theme-swatch").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const themeId = btn.dataset.themeValue;
+      localStorage.setItem(THEME_STORAGE_KEY, themeId);
+      applyTheme(themeId);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -1668,6 +1706,7 @@ function init() {
 
   setupPager();
   setupPageScrollEffect();
+  setupThemePicker();
   setupSoundControls();
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();

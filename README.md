@@ -6,10 +6,10 @@
 
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
-`node_modules`. It pulls [**Aurora**](https://github.com/rustyisacat/Aurora), a
+`node_modules`. It polls [**Aurora**](https://github.com/rustyisacat/Aurora) v2.0, a
 companion Android app, over your home Wi-Fi and turns an old smart display
-into a self-hosted phone status board, morning briefing, and bedside sound
-machine.
+into a self-hosted phone status board, morning briefing, bedside alarm
+clock, and bedside sound machine.
 
 <p align="center">
   <img src="docs/screenshot-overview.png" width="49%" alt="Morning Overview page" />
@@ -18,15 +18,28 @@ machine.
 
 ## Features
 
-- **Four swipeable pages** (CSS scroll-snap, real touch scrolling, tap-to-jump
+- **Five swipeable pages** (CSS scroll-snap, real touch scrolling, tap-to-jump
   dot indicators): a Morning Overview, a dedicated Phone page, a Daily Info
-  page, and a Clock/Alarm/Sound Machine page.
+  page, a Clock/Alarm/Sound Machine page, and a Wake Alarms page.
 - **Morning Briefing**: a one-glance sentence composed client-side from
   weather, calendar, notifications, and battery — no extra backend needed.
+- **Wake Alarms**: set, edit, and delete Aurora's own alarms right from
+  this display — time, repeat days, and which sound rings. When one
+  fires, a full-screen overlay takes over (any page, not just wherever you
+  left it) with a looped alarm sound and Dismiss/Snooze, and automatically
+  stops whatever the ambient sound machine was doing so the two don't
+  overlap.
 - **Bedside Sound Machine**: built-in and custom ambient sounds, looped
   gaplessly via the Web Audio API and played through the display's own
   speakers — control it from the dashboard itself or from the Aurora phone
   app, they stay in sync.
+- **Low battery banner**: a red warning appears on the Overview page if
+  the phone is genuinely low and not charging — a bedside device dying
+  overnight defeats the point.
+- **Auto-dim at night, brightens in the morning**: the whole display dims
+  itself for bedside comfort using actual sunrise/sunset (falls back to a
+  fixed 9pm–7am window until the first weather fetch), and nudges the real
+  hardware backlight too if Fully Kiosk Browser's JS interface is enabled.
 - **Customizable layout**: the Morning Overview's card order, visibility,
   and size are controlled from the Aurora phone app and picked up here
   automatically, no code changes needed.
@@ -37,8 +50,8 @@ machine.
 
 ## Requirements
 
-- [Aurora](https://github.com/rustyisacat/Aurora) running on a phone on the same
-  Wi-Fi network as whatever device will display this.
+- [Aurora](https://github.com/rustyisacat/Aurora) v2.0+ running on a phone on the
+  same Wi-Fi network as whatever device will display this.
 - Any modern browser. Built and tested for a kiosk browser (e.g.
   [Fully Kiosk Browser](https://www.fully-kiosk.com/)) on a rooted/sideloaded
   Amazon Echo Show 5 (1st gen), but nothing here is Echo-Show-specific —
@@ -89,6 +102,11 @@ No build tools, no package manager, no dependencies: just `index.html`,
    this by default; only relevant if you're pointing this at a modified
    or much older Aurora build.
 
+6. **(Optional) Enable Fully Kiosk's JS interface** if you want the
+   night auto-dim feature to control the actual screen backlight, not
+   just this page's own contents. Without it, auto-dim still works, just
+   as a CSS-only effect.
+
 ## How it behaves
 
 - **Two independent update loops.** The clock ticks every second off the
@@ -107,7 +125,9 @@ No build tools, no package manager, no dependencies: just `index.html`,
   actually changed animate.
 - **Sound Machine survives reloads and reboots.** Aurora remembers what
   *should* be playing; the very first poll after this page loads (or the
-  whole display reboots) notices and resumes it automatically.
+  whole display reboots) notices and resumes it automatically. A ringing
+  Wake Alarm is reconciled the same way, so a reload that happens to land
+  mid-ring picks it right back up.
 
 ## Adding a new card
 
@@ -120,6 +140,14 @@ No build tools, no package manager, no dependencies: just `index.html`,
 3. No changes should be needed to the polling, caching, layout, or
    connection-status code — all of it is already generic over "whatever
    the current `/dashboard` response and layout say."
+
+## AI Disclaimer
+
+Parts of this project were assisted or written by AI. If that's something
+you're not comfortable with, no hard feelings, I understand and I don't
+force anyone to use it. The code may have flaws. If you spot something
+that could be better, contributions are very welcome. I'm still learning
+and would appreciate the help.
 
 ## License
 

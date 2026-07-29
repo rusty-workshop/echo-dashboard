@@ -640,7 +640,7 @@ function renderWeather(weather) {
   setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
   setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
 
-  // A set wallpaper wins outright - see startWallpaperRotation()'s doc
+  // A set wallpaper wins outright - see showWallpaperPhoto()'s doc
   // comment for why the accent has to follow the wallpaper once one
   // exists, rather than keep chasing the weather.
   if (wallpaperAccentColor) {
@@ -1044,6 +1044,7 @@ function renderDashboard(data) {
   renderWakeAlarms(data.wakeAlarms);
   syncDefaultAlarmSoundPicker(data.defaultAlarmSoundId);
   reconcileWakeAlarm(data.wakeAlarmRinging);
+  applyWallpaperMode(data);
 }
 
 // ---------------------------------------------------------------------------
@@ -2049,19 +2050,29 @@ function startAmbientPhotoCycle() {
 }
 
 // Dashboard wallpaper - same photo library and crossfade technique as
-// Ambient Mode just above, but its own index/timer, much slower (this is
+// Ambient Mode just above, but its own layers/timer, much slower (this is
 // glanced at while actually using the dashboard, not stared at idle), and
 // re-extracts the accent color (see extractWallpaperAccentColor() earlier
-// in this file) on every swap.
+// in this file) on every swap. Three modes (see Aurora's
+// WallpaperConfigRepository, reported fresh on every /dashboard poll):
+// "rotating" cycles the whole library on a slow timer (the original
+// behavior, still the default), "single" always shows one fixed photo,
+// "scheduled" shows whichever entry's time-of-day has most recently
+// passed - see applyWallpaperMode().
 const WALLPAPER_ROTATION_INTERVAL_MS = 5 * 60 * 1000;
 
 let wallpaperPhotoIndex = -1;
 let wallpaperActiveLayer = "a";
+let wallpaperRotationHandle = null;
+let currentWallpaperPhotoId = null;
 
-async function showNextWallpaperPhoto() {
-  if (ambientPhotoIds.length === 0) return;
-  wallpaperPhotoIndex = (wallpaperPhotoIndex + 1) % ambientPhotoIds.length;
-  const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(ambientPhotoIds[wallpaperPhotoIndex])}`;
+/** Crossfades to [photoId] - a no-op if it's already showing, so calling
+ *  this every poll cycle (single/scheduled modes) doesn't restart the
+ *  fade or re-fetch the same image. Shared by rotating/single/scheduled
+ *  so there's exactly one crossfade + accent-color implementation. */
+async function showWallpaperPhoto(photoId) {
+  if (!photoId || photoId === currentWallpaperPhotoId) return;
+  const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(photoId)}`;
 
   const img = new Image();
   img.crossOrigin = "anonymous";
@@ -2080,6 +2091,7 @@ async function showNextWallpaperPhoto() {
   nextLayer.classList.add("visible");
   prevLayer.classList.remove("visible");
   wallpaperActiveLayer = wallpaperActiveLayer === "a" ? "b" : "a";
+  currentWallpaperPhotoId = photoId;
 
   wallpaperAccentColor = extractWallpaperAccentColor(img);
   if (wallpaperAccentColor) {
@@ -2087,11 +2099,57 @@ async function showNextWallpaperPhoto() {
   }
 }
 
+async function showNextWallpaperPhoto() {
+  if (ambientPhotoIds.length === 0) return;
+  wallpaperPhotoIndex = (wallpaperPhotoIndex + 1) % ambientPhotoIds.length;
+  await showWallpaperPhoto(ambientPhotoIds[wallpaperPhotoIndex]);
+}
+
+function stopWallpaperRotation() {
+  clearInterval(wallpaperRotationHandle);
+  wallpaperRotationHandle = null;
+}
+
 async function startWallpaperRotation() {
   await ensureAmbientPhotosLoaded();
   if (ambientPhotoIds.length === 0) return; // No photos configured - leave the layer empty.
+  if (wallpaperRotationHandle) return; // Already rotating - a re-poll shouldn't reset the timer.
   showNextWallpaperPhoto();
-  setInterval(showNextWallpaperPhoto, WALLPAPER_ROTATION_INTERVAL_MS);
+  wallpaperRotationHandle = setInterval(showNextWallpaperPhoto, WALLPAPER_ROTATION_INTERVAL_MS);
+}
+
+/** [entries] must already be sorted by time ascending (Aurora stores them
+ *  that way). Picks whichever entry's time-of-day has most recently
+ *  passed, wrapping around to the last entry if none have fired yet
+ *  today - so a schedule always covers the full 24 hours with no gaps to
+ *  configure by hand. */
+function activeScheduledPhotoId(entries) {
+  if (!entries || entries.length === 0) return null;
+  const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
+  let active = entries[entries.length - 1];
+  for (const entry of entries) {
+    if (minutesFromHHMM(entry.time) > nowMinutes) break;
+    active = entry;
+  }
+  return active.photoId;
+}
+
+/** Called on every /dashboard poll - applies whichever wallpaper mode
+ *  Aurora currently reports, switching cleanly if the mode itself has
+ *  changed since the last poll (e.g. stopping the rotation timer once
+ *  it's no longer "rotating"). */
+async function applyWallpaperMode(data) {
+  if (data.wallpaperMode === "single") {
+    stopWallpaperRotation();
+    await ensureAmbientPhotosLoaded();
+    showWallpaperPhoto(data.wallpaperSinglePhotoId);
+  } else if (data.wallpaperMode === "scheduled") {
+    stopWallpaperRotation();
+    await ensureAmbientPhotosLoaded();
+    showWallpaperPhoto(activeScheduledPhotoId(data.wallpaperSchedule));
+  } else {
+    startWallpaperRotation();
+  }
 }
 
 async function enterAmbientMode() {
@@ -2173,7 +2231,10 @@ function init() {
   setupNotificationClearButtons();
   setupDndToggle();
   ensureSoundLibraryLoaded();
-  startWallpaperRotation();
+  // No explicit startWallpaperRotation() call here - applyWallpaperMode()
+  // (called from renderDashboard, both for the cached render just above
+  // and every live poll after) decides rotating/single/scheduled and
+  // starts rotation itself when that's the mode in effect.
   startClock();
   startPolling();
 }

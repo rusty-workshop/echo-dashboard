@@ -1719,10 +1719,23 @@ function setupThemePicker() {
 // ---------------------------------------------------------------------------
 
 const BEDSIDE_RAIN_SOUND_ID = "rain";
+const BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT = 50;
+
+/** Live-updates the --bedside-brightness custom property style.css's
+ *  body.bedside-active reads (see the comment there) - purely a local
+ *  display preference, nothing to send to Aurora. */
+function setBedsideBrightness(percent) {
+  document.documentElement.style.setProperty("--bedside-brightness", String(percent / 100));
+  setText("bedside-brightness-label", `${percent}%`);
+}
 
 async function enterBedsideMode() {
   byId("bedside-overlay")?.classList.remove("hidden");
   document.body.classList.add("bedside-active");
+
+  const slider = byId("bedside-brightness-slider");
+  if (slider) slider.value = String(BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT);
+  setBedsideBrightness(BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT);
 
   await startLocalPlayback(BEDSIDE_RAIN_SOUND_ID, 0);
   await postSoundAction(`/sound/play?id=${BEDSIDE_RAIN_SOUND_ID}`);
@@ -1741,8 +1754,12 @@ function exitBedsideMode() {
 function setupBedsideMode() {
   setIcon("bedside-trigger-icon", "moon");
   setIcon("bedside-exit-icon", "close");
+  setIcon("bedside-brightness-icon", "sunny");
   byId("bedside-trigger-btn")?.addEventListener("click", enterBedsideMode);
   byId("bedside-exit-btn")?.addEventListener("click", exitBedsideMode);
+  byId("bedside-brightness-slider")?.addEventListener("input", (event) => {
+    setBedsideBrightness(Number(event.target.value));
+  });
 }
 
 // ---------------------------------------------------------------------------

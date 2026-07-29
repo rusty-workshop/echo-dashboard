@@ -416,6 +416,21 @@
     </div>
 
     <section class="sound-panel-lg bedside-sound-panel" aria-label="Sound Machine">
+      <div class="sound-row sound-row-lg">
+        <span class="icon-slot small" id="bedside-brightness-icon" aria-hidden="true"></span>
+        <input
+          type="range"
+          id="bedside-brightness-slider"
+          class="sound-volume sound-volume-lg"
+          min="10"
+          max="100"
+          step="5"
+          value="50"
+          aria-label="Brightness"
+        />
+        <span class="sound-volume-label" id="bedside-brightness-label">50%</span>
+      </div>
+
       <div class="sound-current sound-current-lg">
         <span class="icon-slot" id="sound-icon-bedside" aria-hidden="true"></span>
         <span id="sound-name-bedside" class="sound-name">Off</span>

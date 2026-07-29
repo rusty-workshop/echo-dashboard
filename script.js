@@ -185,6 +185,68 @@ function setIcon(id, iconName) {
   el.innerHTML = ICONS[iconName] || "";
 }
 
+/** Same as setIcon, but plays a brief scale+fade "pop" on change - used
+ *  just for the weather icon, since a real shape morph between conditions
+ *  (sun -> cloud -> rain, ...) isn't practical for a handful of unrelated
+ *  SVGs, but an instant swap reads as a jump-cut next to everything else
+ *  on this dashboard that eases into its changes. */
+function setWeatherIcon(id, iconName) {
+  const el = byId(id);
+  if (!el || el.dataset.icon === iconName) return;
+  el.dataset.icon = iconName;
+  el.innerHTML = ICONS[iconName] || "";
+  el.classList.remove("icon-pop");
+  void el.offsetWidth; // force reflow so the animation restarts cleanly
+  el.classList.add("icon-pop");
+}
+
+// ---------------------------------------------------------------------------
+// Rolling number animation - ties a numeric value's text to a smooth
+// count-up/down tween instead of an instant jump-cut (weather temperatures,
+// battery %). Reads the element's own currently-*displayed* value as the
+// tween's start point, not whatever this function last set it to, so a
+// stale/interrupted animation never causes a visible skip.
+// ---------------------------------------------------------------------------
+
+const NUMBER_ROLL_DURATION_MS = 650;
+const numberRollHandles = new Map(); // elementId -> rAF id, so a re-trigger cancels the prior tween
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+/** Animates [id]'s text between whatever number it currently shows and
+ *  [targetValue], appending [suffix] (e.g. "°" or "%") - a plain
+ *  instant-set (no tween) the first time, when there's no prior numeric
+ *  value to animate from. */
+function setRollingNumber(id, targetValue, suffix = "") {
+  const el = byId(id);
+  if (!el || targetValue == null || Number.isNaN(targetValue)) return;
+
+  const startValue = parseInt(el.textContent, 10);
+  if (Number.isNaN(startValue)) {
+    el.textContent = `${targetValue}${suffix}`;
+    return;
+  }
+  if (startValue === targetValue) return;
+
+  const existingHandle = numberRollHandles.get(id);
+  if (existingHandle) cancelAnimationFrame(existingHandle);
+
+  const startTime = performance.now();
+  const step = (now) => {
+    const progress = Math.min((now - startTime) / NUMBER_ROLL_DURATION_MS, 1);
+    const value = Math.round(startValue + (targetValue - startValue) * easeOutCubic(progress));
+    el.textContent = `${value}${suffix}`;
+    if (progress < 1) {
+      numberRollHandles.set(id, requestAnimationFrame(step));
+    } else {
+      numberRollHandles.delete(id);
+    }
+  };
+  numberRollHandles.set(id, requestAnimationFrame(step));
+}
+
 /** Calendar event titles and app names come from the phone - untrusted
  *  user data - so escape before dropping anything into innerHTML. */
 function escapeHtml(value) {
@@ -243,6 +305,33 @@ const ACCENT_BY_CONDITION = {
 
 function applyAccentColor(condition) {
   document.documentElement.style.setProperty("--accent", ACCENT_BY_CONDITION[condition] || "#9aa5b1");
+}
+
+// One of 6 ambient background treatments - fog/partly-cloudy/overcast all
+// share the "clouds" drift since a dedicated haze effect for fog alone
+// isn't worth the extra variant. Night wins over a clear sky (stars, not
+// a sun glow) but rain/snow/storm keep their own look even after dark -
+// rain is still rain at 2am.
+const WEATHER_BG_BY_CONDITION = {
+  Clear: "sunny",
+  "Partly Cloudy": "clouds",
+  Overcast: "clouds",
+  Fog: "clouds",
+  Drizzle: "rain",
+  Rain: "rain",
+  "Rain Showers": "rain",
+  Snow: "snow",
+  "Snow Showers": "snow",
+  Thunderstorm: "storm",
+};
+
+function setWeatherBackground(condition, nightOverride) {
+  const el = byId("weather-bg");
+  if (!el) return;
+  const name = nightOverride ? "night" : WEATHER_BG_BY_CONDITION[condition] || "clouds";
+  if (el.dataset.bg === name) return;
+  el.dataset.bg = name;
+  el.className = `weather-bg weather-bg--${name}`;
 }
 
 // Past this hour (and before NIGHT_WEATHER_OVERRIDE_END_HOUR the next
@@ -431,23 +520,23 @@ function renderWeather(weather) {
 
   const nightOverride = isPastNightWeatherThreshold(currentTimezone || undefined);
   const icon = nightOverride ? "moon" : WEATHER_ICON_BY_CONDITION[weather.condition] || "cloud";
-  const temp = `${Math.round(weather.temperature)}°`;
-  const high = `${Math.round(weather.high)}°`;
-  const low = `${Math.round(weather.low)}°`;
+  const temp = Math.round(weather.temperature);
+  const high = Math.round(weather.high);
+  const low = Math.round(weather.low);
 
   // Weather appears twice - the compact Overview card and the big hero
   // tile on the Daily Info page - so both ids get updated together.
-  setIcon("weather-icon", icon);
-  setText("weather-temp", temp);
+  setWeatherIcon("weather-icon", icon);
+  setRollingNumber("weather-temp", temp, "°");
   setText("weather-condition", weather.condition);
-  setText("weather-high", high);
-  setText("weather-low", low);
+  setRollingNumber("weather-high", high, "°");
+  setRollingNumber("weather-low", low, "°");
 
-  setIcon("weather-icon-lg", icon);
-  setText("weather-temp-lg", temp);
+  setWeatherIcon("weather-icon-lg", icon);
+  setRollingNumber("weather-temp-lg", temp, "°");
   setText("weather-condition-lg", weather.condition);
-  setText("weather-high-lg", high);
-  setText("weather-low-lg", low);
+  setRollingNumber("weather-high-lg", high, "°");
+  setRollingNumber("weather-low-lg", low, "°");
   setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
   setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
 
@@ -456,6 +545,7 @@ function renderWeather(weather) {
   } else {
     applyAccentColor(weather.condition);
   }
+  setWeatherBackground(weather.condition, nightOverride);
 
   // Drives the clock's timezone too - see the comment above updateClock().
   if (weather.timezone) currentTimezone = weather.timezone;
@@ -483,12 +573,16 @@ function renderPhone(battery, charging) {
   // Phone appears twice - the compact Overview card and the big hero tile
   // on the Phone page.
   setIcon("phone-battery-icon", icon);
-  setText("phone-battery-level", `${battery}%`);
+  setRollingNumber("phone-battery-level", battery, "%");
   setText("phone-charging", chargingText);
+  const fillBar = byId("phone-battery-fill");
+  if (fillBar) fillBar.style.width = `${battery}%`;
 
   setIcon("phone-battery-icon-lg", icon);
-  setText("phone-battery-level-lg", `${battery}%`);
+  setRollingNumber("phone-battery-level-lg", battery, "%");
   setText("phone-charging-lg", chargingText);
+  const fillBarLg = byId("phone-battery-fill-lg");
+  if (fillBarLg) fillBarLg.style.width = `${battery}%`;
 }
 
 function renderNotifications(groups) {
@@ -1517,6 +1611,42 @@ function setupPager() {
   pages.forEach((page) => observer.observe(page));
 }
 
+// Subtle scale+fade on whichever page is mid-swipe, driven directly off
+// scroll position rather than a fixed-duration transition - it needs to
+// track the finger 1:1, not ease on its own schedule. Skipped entirely
+// under prefers-reduced-motion since it's a continuous transform effect,
+// not a CSS animation/transition the global reduced-motion rule catches.
+function setupPageScrollEffect() {
+  const pager = byId("pager");
+  if (!pager) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const pages = Array.from(pager.children);
+  let ticking = false;
+
+  const update = () => {
+    ticking = false;
+    const pagerRect = pager.getBoundingClientRect();
+    const center = pagerRect.left + pagerRect.width / 2;
+    pages.forEach((page) => {
+      const rect = page.getBoundingClientRect();
+      const pageCenter = rect.left + rect.width / 2;
+      const progress = Math.min(Math.abs(pageCenter - center) / rect.width, 1);
+      page.style.transform = `scale(${1 - progress * 0.06})`;
+      page.style.opacity = String(1 - progress * 0.35);
+    });
+  };
+
+  pager.addEventListener("scroll", () => {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+  }, { passive: true });
+
+  update();
+}
+
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
@@ -1537,6 +1667,7 @@ function init() {
   }
 
   setupPager();
+  setupPageScrollEffect();
   setupSoundControls();
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();

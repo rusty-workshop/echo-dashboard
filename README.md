@@ -28,7 +28,9 @@ however you like, right down to matching your own wallpaper's colors.
 - **Morning Briefing**: a one-glance summary composed client-side from
   weather, calendar, and rain forecast — a greeting, today's conditions
   (with an umbrella warning if rain is expected), and a countdown to your
-  next calendar event.
+  next calendar event. The same rain heads-up also shows directly on the
+  Weather card and the Daily Info page, in case you scroll past the
+  briefing without reading it.
 - **Wake Alarms**: set, edit, and delete Aurora's own alarms right from
   this display — time, repeat days, and which sound rings. When one
   fires, a full-screen overlay takes over (any page, not just wherever you

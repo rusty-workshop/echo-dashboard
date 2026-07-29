@@ -608,6 +608,7 @@ function renderWeather(weather) {
     setText("weather-condition", "No data");
     setText("weather-high", "--°");
     setText("weather-low", "--°");
+    byId("weather-rain")?.classList.add("hidden");
     setIcon("weather-icon-lg", "cloud");
     setText("weather-temp-lg", "--°");
     setText("weather-condition-lg", "No data");
@@ -615,6 +616,7 @@ function renderWeather(weather) {
     setText("weather-low-lg", "--°");
     setText("weather-sunrise-lg", "--:--");
     setText("weather-sunset-lg", "--:--");
+    byId("weather-rain-lg")?.classList.add("hidden");
     return;
   }
 
@@ -639,6 +641,17 @@ function renderWeather(weather) {
   setRollingNumber("weather-low-lg", low, "°");
   setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
   setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
+
+  // Same "bring an umbrella" signal the Morning Briefing already surfaces
+  // (see renderMorningBriefing) - shown here too since the Weather card is
+  // where you'd actually look for it once the briefing's scrolled by.
+  const rainText = weather.rainExpectedAt ? `Rain expected ${formatTime12h(weather.rainExpectedAt)}` : "";
+  setIcon("weather-rain-icon", "rain");
+  setText("weather-rain-text", rainText);
+  byId("weather-rain")?.classList.toggle("hidden", !rainText);
+  setIcon("weather-rain-icon-lg", "rain");
+  setText("weather-rain-text-lg", rainText);
+  byId("weather-rain-lg")?.classList.toggle("hidden", !rainText);
 
   // A set wallpaper wins outright - see showWallpaperPhoto()'s doc
   // comment for why the accent has to follow the wallpaper once one

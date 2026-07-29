@@ -515,6 +515,24 @@ function renderNotifications(groups) {
   if (listLg) listLg.innerHTML = html;
 }
 
+/**
+ * "Clear All" dismisses every notification on the phone, the same as
+ * swiping them from the notification shade - a real, immediate action on
+ * the phone, not just clearing this display's own count. Always visible
+ * on the dedicated Phone page's full panel; only shown on the compact
+ * Overview card when its tile is sized "large" (see
+ * updateNotifClearButtonVisibility) - a small/medium card doesn't have
+ * room to make this an intentional tap instead of an easy mis-tap.
+ */
+function setupNotificationClearButtons() {
+  setIcon("notif-clear-icon", "trash");
+  setIcon("notif-clear-icon-lg", "trash");
+
+  const clearAll = () => postSoundAction("/notifications/clear").then(poll);
+  byId("notif-clear-btn")?.addEventListener("click", clearAll);
+  byId("notif-clear-btn-lg")?.addEventListener("click", clearAll);
+}
+
 function renderSchedule(events, showsTomorrow) {
   setIcon("schedule-title-icon", "calendar");
   setIcon("schedule-title-icon-lg", "calendar");
@@ -657,9 +675,20 @@ let lastAppliedLayoutJson = null;
  * so a routine 30s poll doesn't replay the card-fade-in animation or touch
  * the DOM for no reason.
  */
+// Clearing notifications from the compact Overview card only makes sense
+// with the extra room a "large" tile gives it - see updateNotifClearButtonVisibility().
+let notificationsTileSize = "medium";
+
+function updateNotifClearButtonVisibility() {
+  byId("notif-clear-btn")?.classList.toggle("hidden", notificationsTileSize !== "large");
+}
+
 function applyTileLayout(tiles) {
   const grid = document.querySelector(".card-grid");
   if (!grid) return;
+
+  notificationsTileSize = tiles.find((tile) => tile.id === "notifications")?.size || "medium";
+  updateNotifClearButtonVisibility();
 
   const layoutJson = JSON.stringify(tiles);
   if (layoutJson === lastAppliedLayoutJson) return;
@@ -1524,6 +1553,7 @@ function init() {
   setupSoundControls();
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();
+  setupNotificationClearButtons();
   ensureSoundLibraryLoaded();
   startClock();
   startPolling();

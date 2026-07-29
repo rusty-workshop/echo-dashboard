@@ -336,6 +336,32 @@ input {
   color: var(--text-secondary);
 }
 
+/* Sits at the end of a .card-title/.panel-title row (both already
+   display: flex) - margin-left: auto pushes it flush right without
+   needing a wrapper element. */
+.notif-clear-btn {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+  transition: background var(--transition-fast), color var(--transition-color);
+}
+
+.notif-clear-btn:active {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
 .card-body {
   display: flex;
   flex-direction: column;

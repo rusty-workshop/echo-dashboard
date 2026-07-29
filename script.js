@@ -950,11 +950,20 @@ function applyTileLayout(tiles) {
     const rowTiles = visibleTiles.slice(i, i + 2);
     const row = document.createElement("div");
     row.className = "card-row";
+    // flex-basis: 0 forces each row's/card's share of the grid to come
+    // purely from its flex-grow ratio, not its content's natural size -
+    // without this, a row with unusually tall content (e.g. today's
+    // notification list) can claim more than its fair share and push
+    // later rows past the page's clipped height, since flex-shrink
+    // pulling a content-sized item back down isn't reliably supported by
+    // the Echo Show's WebView across this many nested flex levels.
     row.style.flexGrow = String(Math.max(...rowTiles.map((tile) => TILE_SIZE_WEIGHT[tile.size] ?? 1)));
+    row.style.flexBasis = "0";
 
     rowTiles.forEach((tile, indexInRow) => {
       const card = cardElements[tile.id];
       card.style.flexGrow = String(TILE_SIZE_WEIGHT[tile.size] ?? 1);
+      card.style.flexBasis = "0";
       card.style.animationDelay = `${(i + indexInRow) * 40}ms`;
       row.appendChild(card);
     });

@@ -456,6 +456,20 @@ input {
   font-weight: 600;
 }
 
+.weather-rain {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-caption);
+  color: var(--accent);
+  transition: color var(--transition-color);
+}
+
+.weather-rain .icon-slot.small {
+  color: inherit;
+}
+
 /* ---- Phone card ----------------------------------------------------------- */
 
 .phone-battery {
@@ -798,6 +812,19 @@ input {
 .weather-range-lg b {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.weather-rain-lg {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-body-lg);
+  color: var(--accent);
+  transition: color var(--transition-color);
+}
+
+.weather-rain-lg .icon-slot.small {
+  color: inherit;
 }
 
 .panel {

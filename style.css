@@ -115,6 +115,8 @@ input {
    with touch-action: none - see .sound-volume). */
 
 .pager {
+  position: relative;
+  z-index: 1; /* paint above the fixed #weather-bg layer regardless of DOM order */
   height: 100vh;
   width: 100vw;
   display: flex;
@@ -454,6 +456,27 @@ input {
 .phone-charging {
   font-size: var(--fs-caption);
   color: var(--text-secondary);
+}
+
+.battery-fill-track {
+  width: 100%;
+  height: 0.4em;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  overflow: hidden;
+}
+
+.battery-fill-track-lg {
+  height: 0.55em;
+  max-width: 12em;
+}
+
+.battery-fill-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 900ms ease-out, background var(--transition-color);
 }
 
 /* ---- Notifications card (grouped by app) ----------------------------------- */
@@ -1047,6 +1070,22 @@ input {
   }
 }
 
+/* Synced to the same 1.6s cadence as alarm-pulse so the icon and
+   background beat together rather than fighting for attention. */
+.alarm-ringing-icon {
+  color: var(--accent-danger);
+  animation: alarm-icon-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes alarm-icon-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
 .alarm-ringing-time {
   font-size: var(--fs-clock-huge);
   font-weight: 700;
@@ -1159,6 +1198,203 @@ input {
 
 .value-pulse {
   animation: value-pulse 420ms ease-out;
+}
+
+/* Applied briefly by script.js to the weather icon slot when the condition
+   changes - a scale+fade "pop" stands in for a true shape morph between
+   unrelated icon shapes (sun/cloud/rain/...), which isn't practical here. */
+@keyframes icon-pop {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.icon-pop {
+  animation: icon-pop 480ms ease-out;
+}
+
+/* ---- Ambient weather backgrounds ------------------------------------------
+   A single fixed layer behind the pager (see .pager's z-index above),
+   swapped between 6 CSS-only treatments by setWeatherBackground() in
+   script.js. Everything here animates transform/opacity only - no
+   per-frame JS, no repainted geometry - so it stays cheap on the Echo
+   Show's modest hardware. Deliberately subdued: "ambient, not distracting"
+   was the brief, so opacity stays low and motion stays slow. */
+
+.weather-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.weather-bg--sunny::before {
+  content: "";
+  position: absolute;
+  top: -15%;
+  right: -15%;
+  width: 55vmax;
+  height: 55vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 183, 77, 0.35), transparent 70%);
+  animation: bg-sun-breathe 8s ease-in-out infinite;
+}
+
+@keyframes bg-sun-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.weather-bg--clouds::before,
+.weather-bg--clouds::after {
+  content: "";
+  position: absolute;
+  top: 14%;
+  width: 42vmax;
+  height: 14vmax;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.28), transparent 70%);
+  filter: blur(2px);
+  animation: bg-cloud-drift 80s linear infinite;
+}
+
+.weather-bg--clouds::after {
+  top: 38%;
+  width: 30vmax;
+  height: 10vmax;
+  opacity: 0.7;
+  animation-duration: 110s;
+  animation-delay: -35s;
+}
+
+@keyframes bg-cloud-drift {
+  from {
+    transform: translateX(-45vmax);
+  }
+  to {
+    transform: translateX(145vw);
+  }
+}
+
+.weather-bg--rain::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(200, 220, 255, 0.18) 0,
+    rgba(200, 220, 255, 0.18) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+  animation: bg-rain-fall 0.9s linear infinite;
+}
+
+@keyframes bg-rain-fall {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-8px, 16px);
+  }
+}
+
+.weather-bg--snow::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.55) 1.5px, transparent 1.5px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
+  background-size: 60px 60px, 40px 40px;
+  background-position: 0 0, 20px 15px;
+  animation: bg-snow-fall 10s linear infinite;
+}
+
+@keyframes bg-snow-fall {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-20px, 60px);
+  }
+}
+
+.weather-bg--storm::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(200, 220, 255, 0.14) 0,
+    rgba(200, 220, 255, 0.14) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+  animation: bg-rain-fall 0.9s linear infinite;
+}
+
+.weather-bg--storm::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.9);
+  opacity: 0;
+  animation: bg-storm-flash 7s ease-in-out infinite;
+}
+
+@keyframes bg-storm-flash {
+  0%, 92%, 100% {
+    opacity: 0;
+  }
+  93% {
+    opacity: 0.45;
+  }
+  94% {
+    opacity: 0.05;
+  }
+  95% {
+    opacity: 0.3;
+  }
+  96% {
+    opacity: 0;
+  }
+}
+
+.weather-bg--night::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.8) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
+  background-size: 140px 140px, 90px 90px;
+  background-position: 10px 20px, 60px 80px;
+  animation: bg-star-twinkle 5s ease-in-out infinite;
+}
+
+@keyframes bg-star-twinkle {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

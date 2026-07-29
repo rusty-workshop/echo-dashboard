@@ -23,6 +23,7 @@
     function per widget in script.js updates both ids. Four fixed pages
     is a small, closed set - not worth abstracting over.
   -->
+  <div class="weather-bg" id="weather-bg" aria-hidden="true"></div>
   <div class="pager" id="pager">
     <!-- Page 1: Morning Overview - the original single-page dashboard,
          unchanged except Notifications now gets more space and Alarm less
@@ -85,6 +86,9 @@
             <div class="phone-battery">
               <span class="icon-slot" id="phone-battery-icon" aria-hidden="true"></span>
               <span id="phone-battery-level">--%</span>
+            </div>
+            <div class="battery-fill-track">
+              <div class="battery-fill-bar" id="phone-battery-fill"></div>
             </div>
             <div class="phone-charging" id="phone-charging">–</div>
           </div>
@@ -170,6 +174,9 @@
         <div class="hero-tile">
           <span class="icon-slot xlarge" id="phone-battery-icon-lg" aria-hidden="true"></span>
           <div class="hero-value" id="phone-battery-level-lg">--%</div>
+          <div class="battery-fill-track battery-fill-track-lg">
+            <div class="battery-fill-bar" id="phone-battery-fill-lg"></div>
+          </div>
           <div class="hero-caption" id="phone-charging-lg">–</div>
         </div>
 
@@ -316,7 +323,7 @@
   <!-- Outside the pager so it covers whichever page is active when an
        alarm fires - see reconcileWakeAlarm() in script.js. -->
   <div class="alarm-ringing-overlay hidden" id="alarm-ringing-overlay" role="alertdialog" aria-label="Alarm ringing">
-    <span class="icon-slot xlarge" id="alarm-ringing-icon" aria-hidden="true"></span>
+    <span class="icon-slot xlarge alarm-ringing-icon" id="alarm-ringing-icon" aria-hidden="true"></span>
     <div class="alarm-ringing-time" id="alarm-ringing-time">--:--</div>
     <div class="alarm-ringing-label" id="alarm-ringing-label"></div>
     <div class="alarm-ringing-actions">

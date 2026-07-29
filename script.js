@@ -118,6 +118,7 @@ const AURORA_BASE_URL = resolveAuroraBaseUrl();
 const ICONS = {
   sunny:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
   cloud:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 19a4.5 4.5 0 0 1-.5-8.98A6 6 0 0 1 17.6 8.03 4.5 4.5 0 0 1 17 19H6.5z"/></svg>',
   rain:
@@ -242,6 +243,21 @@ const ACCENT_BY_CONDITION = {
 
 function applyAccentColor(condition) {
   document.documentElement.style.setProperty("--accent", ACCENT_BY_CONDITION[condition] || "#9aa5b1");
+}
+
+// Past this hour (and before NIGHT_WEATHER_OVERRIDE_END_HOUR the next
+// morning), the Weather card shows a moon and switches to silver
+// regardless of the actual condition - even a clear, 90°+ night shouldn't
+// show a bright sun icon. A fixed clock-hour override, not tied to actual
+// sunset/sunrise like applyDayNightMode()'s dimming - those are two
+// different concerns that just happen to both be about nighttime.
+const NIGHT_WEATHER_OVERRIDE_START_HOUR = 20; // 8:00 PM
+const NIGHT_WEATHER_OVERRIDE_END_HOUR = 6; // 6:00 AM
+const NIGHT_WEATHER_ACCENT = "#c7ccd6"; // silver
+
+function isPastNightWeatherThreshold(timeZone) {
+  const hour = currentHourInTimezone(timeZone);
+  return hour >= NIGHT_WEATHER_OVERRIDE_START_HOUR || hour < NIGHT_WEATHER_OVERRIDE_END_HOUR;
 }
 
 function greetingForHour(hour) {
@@ -413,7 +429,8 @@ function renderWeather(weather) {
     return;
   }
 
-  const icon = WEATHER_ICON_BY_CONDITION[weather.condition] || "cloud";
+  const nightOverride = isPastNightWeatherThreshold(currentTimezone || undefined);
+  const icon = nightOverride ? "moon" : WEATHER_ICON_BY_CONDITION[weather.condition] || "cloud";
   const temp = `${Math.round(weather.temperature)}°`;
   const high = `${Math.round(weather.high)}°`;
   const low = `${Math.round(weather.low)}°`;
@@ -434,7 +451,11 @@ function renderWeather(weather) {
   setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
   setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
 
-  applyAccentColor(weather.condition);
+  if (nightOverride) {
+    document.documentElement.style.setProperty("--accent", NIGHT_WEATHER_ACCENT);
+  } else {
+    applyAccentColor(weather.condition);
+  }
 
   // Drives the clock's timezone too - see the comment above updateClock().
   if (weather.timezone) currentTimezone = weather.timezone;

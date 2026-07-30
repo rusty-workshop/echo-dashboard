@@ -1561,7 +1561,8 @@ body.ambient-active {
 /* ---- Ambient weather backgrounds ------------------------------------------
    A single fixed layer in front of the pager and the wallpaper both (like
    weather happening on the glass in front of the whole display, not just
-   the wallpaper photo behind it), swapped between 6 CSS-only treatments by
+   the wallpaper photo behind it), swapped between 8 CSS-only treatments
+   (sunny, partly cloudy, overcast, fog, rain, snow, storm, night) by
    setWeatherBackground() in script.js. pointer-events: none keeps it purely
    visual - taps still reach the cards/buttons underneath regardless of
    this sitting on top of them. Everything here animates transform/opacity
@@ -1603,6 +1604,40 @@ body.ambient-active {
   }
 }
 
+/* Very slow rotating light rays behind the glow - barely perceptible as
+   motion at any single glance, just a bit of extra life over a static
+   glow. conic-gradient's hard stops read as soft shafts once rotating. */
+.weather-bg--sunny::after {
+  content: "";
+  position: absolute;
+  top: -30%;
+  right: -30%;
+  width: 75vmax;
+  height: 75vmax;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg, rgba(255, 210, 140, 0.12) 6deg, transparent 18deg,
+    transparent 85deg, rgba(255, 210, 140, 0.1) 95deg, transparent 110deg,
+    transparent 200deg, rgba(255, 210, 140, 0.12) 212deg, transparent 228deg,
+    transparent 300deg, rgba(255, 210, 140, 0.09) 310deg, transparent 324deg,
+    transparent 360deg
+  );
+  animation: bg-sun-rays-rotate 90s linear infinite;
+}
+
+@keyframes bg-sun-rays-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Overcast: an even, gray, sun-free sky - two soft blobs drifting past
+   each other at different heights/speeds. See .weather-bg--partlycloudy
+   below for the distinct "sun behind cloud" treatment. */
 .weather-bg--clouds::before,
 .weather-bg--clouds::after {
   content: "";
@@ -1634,29 +1669,128 @@ body.ambient-active {
   }
 }
 
-.weather-bg--rain::before {
+/* Partly Cloudy: a dimmer, smaller sun glow (still breathing, just more
+   subdued than full Sunny) with one bright drifting cloud passing in
+   front of it - "sun peeking through", distinct from Overcast's flat
+   sun-free sky and from Sunny's unobstructed glow. Reuses both existing
+   keyframes rather than inventing new ones for what's really the same
+   two motions in a different mix. */
+.weather-bg--partlycloudy::before {
   content: "";
   position: absolute;
-  inset: -20% -10%;
-  background-image: repeating-linear-gradient(
-    115deg,
-    rgba(200, 220, 255, 0.18) 0,
-    rgba(200, 220, 255, 0.18) 1px,
-    transparent 1px,
-    transparent 16px
-  );
-  animation: bg-rain-fall 0.9s linear infinite;
+  top: -12%;
+  right: -8%;
+  width: 40vmax;
+  height: 40vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 190, 100, 0.26), transparent 70%);
+  animation: bg-sun-breathe 9s ease-in-out infinite;
 }
 
-@keyframes bg-rain-fall {
+.weather-bg--partlycloudy::after {
+  content: "";
+  position: absolute;
+  top: 6%;
+  width: 46vmax;
+  height: 16vmax;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.4), transparent 72%);
+  filter: blur(3px);
+  animation: bg-cloud-drift 65s linear infinite;
+}
+
+/* Fog: two wide, softly blurred haze bands drifting slowly side to side
+   at different heights/speeds/directions - reads as drifting mist rather
+   than the more solid drifting-blob look Clouds/Partly Cloudy use. Pairs
+   with the condensation vignette below for a properly "socked in" feel. */
+.weather-bg--fog::before,
+.weather-bg--fog::after {
+  content: "";
+  position: absolute;
+  left: -20%;
+  width: 140%;
+  height: 18vmax;
+  background: linear-gradient(90deg, transparent, rgba(225, 230, 235, 0.6), transparent);
+  filter: blur(4px);
+  animation: bg-fog-drift 26s ease-in-out infinite;
+}
+
+.weather-bg--fog::before {
+  top: 20%;
+}
+
+.weather-bg--fog::after {
+  top: 55%;
+  height: 22vmax;
+  opacity: 0.85;
+  animation-duration: 34s;
+  animation-direction: reverse;
+}
+
+@keyframes bg-fog-drift {
+  0%, 100% {
+    transform: translateX(-8%);
+  }
+  50% {
+    transform: translateX(8%);
+  }
+}
+
+/* Real droplet trails falling straight down (background-position
+   scrolling a repeating tile of blurred vertical ellipses), not a
+   diagonal streak texture - two layers at different sizes/speeds for a
+   little depth, since bigger drops genuinely do fall faster than fine
+   ones. Rain gets both layers; Storm (below) reuses just the first, its
+   ::after being spoken for by the lightning flash. */
+.weather-bg--rain::before,
+.weather-bg--storm::before {
+  content: "";
+  position: absolute;
+  inset: -15% 0;
+  background-image: radial-gradient(ellipse 2px 24px at 8% 0%, rgba(210, 227, 252, 0.75), transparent 70%),
+    radial-gradient(ellipse 1.5px 16px at 27% 0%, rgba(210, 227, 252, 0.6), transparent 70%),
+    radial-gradient(ellipse 2px 28px at 49% 0%, rgba(210, 227, 252, 0.7), transparent 70%),
+    radial-gradient(ellipse 1.5px 18px at 68% 0%, rgba(210, 227, 252, 0.6), transparent 70%),
+    radial-gradient(ellipse 2px 22px at 88% 0%, rgba(210, 227, 252, 0.7), transparent 70%);
+  background-size: 100% 130px;
+  background-repeat: repeat;
+  animation: bg-raindrops-fall 0.85s linear infinite;
+}
+
+@keyframes bg-raindrops-fall {
   from {
-    transform: translate(0, 0);
+    background-position: 0 -130px;
   }
   to {
-    transform: translate(-8px, 16px);
+    background-position: 0 0;
   }
 }
 
+.weather-bg--rain::after {
+  content: "";
+  position: absolute;
+  inset: -15% 0;
+  background-image: radial-gradient(ellipse 2.5px 34px at 18% 0%, rgba(220, 235, 255, 0.5), transparent 70%),
+    radial-gradient(ellipse 2.5px 30px at 62% 0%, rgba(220, 235, 255, 0.45), transparent 70%);
+  background-size: 100% 190px;
+  background-repeat: repeat;
+  animation: bg-raindrops-fall-near 0.65s linear infinite;
+}
+
+@keyframes bg-raindrops-fall-near {
+  from {
+    background-position: 0 -190px;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* Two drift layers (far/near) instead of one straight diagonal fall - a
+   gentle side-to-side zigzag reads much closer to how snow actually
+   drifts down than a constant-angle translate. Both keyframes' total
+   travel is a multiple of their own tile size(s) so the loop point is
+   seamless. */
 .weather-bg--snow::before {
   content: "";
   position: absolute;
@@ -1665,30 +1799,56 @@ body.ambient-active {
     radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
   background-size: 60px 60px, 40px 40px;
   background-position: 0 0, 20px 15px;
-  animation: bg-snow-fall 10s linear infinite;
+  animation: bg-snow-drift-far 12s linear infinite;
 }
 
-@keyframes bg-snow-fall {
-  from {
+@keyframes bg-snow-drift-far {
+  0% {
     transform: translate(0, 0);
   }
-  to {
-    transform: translate(-20px, 60px);
+  20% {
+    transform: translate(10px, 48px);
+  }
+  40% {
+    transform: translate(-8px, 96px);
+  }
+  60% {
+    transform: translate(12px, 144px);
+  }
+  80% {
+    transform: translate(-6px, 192px);
+  }
+  100% {
+    transform: translate(0, 240px);
   }
 }
 
-.weather-bg--storm::before {
+.weather-bg--snow::after {
   content: "";
   position: absolute;
-  inset: -20% -10%;
-  background-image: repeating-linear-gradient(
-    115deg,
-    rgba(200, 220, 255, 0.14) 0,
-    rgba(200, 220, 255, 0.14) 1px,
-    transparent 1px,
-    transparent 16px
-  );
-  animation: bg-rain-fall 0.9s linear infinite;
+  inset: -10%;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.7) 2px, transparent 2px);
+  background-size: 90px 90px;
+  background-position: 45px 20px;
+  animation: bg-snow-drift-near 8s linear infinite;
+}
+
+@keyframes bg-snow-drift-near {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-14px, 67px);
+  }
+  50% {
+    transform: translate(10px, 135px);
+  }
+  75% {
+    transform: translate(-8px, 202px);
+  }
+  100% {
+    transform: translate(0, 270px);
+  }
 }
 
 .weather-bg--storm::after {
@@ -1729,6 +1889,21 @@ body.ambient-active {
   animation: bg-star-twinkle 5s ease-in-out infinite;
 }
 
+/* A third, differently-sized star layer on the same shared twinkle
+   keyframe, but phase-shifted via a negative delay so it pulses out of
+   sync with ::before - real starlight doesn't twinkle in unison, and two
+   layers pulsing together read as one flat blink rather than a sky. */
+.weather-bg--night::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.65) 1px, transparent 1px);
+  background-size: 110px 110px;
+  background-position: 35px 55px;
+  animation: bg-star-twinkle 5s ease-in-out infinite;
+  animation-delay: -2.3s;
+}
+
 @keyframes bg-star-twinkle {
   0%, 100% {
     opacity: 0.6;
@@ -1736,6 +1911,34 @@ body.ambient-active {
   50% {
     opacity: 1;
   }
+}
+
+/* A faint frosted vignette at the screen edges - cold/wet conditions
+   only (rain, storm, snow, night). Static gradient + a fixed blur value,
+   not backdrop-filter - it never re-samples whatever's underneath, so it
+   costs nothing per frame despite sitting above the animated rain/snow
+   layers. Only opacity ever transitions, and only on the rare occasion
+   the weather condition itself changes. */
+.weather-condensation {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 2.5s ease;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 52%,
+    rgba(210, 226, 242, 0.16) 80%,
+    rgba(210, 226, 242, 0.38) 100%
+  );
+  filter: blur(4px);
+}
+
+.weather-bg--rain .weather-condensation,
+.weather-bg--storm .weather-condensation,
+.weather-bg--snow .weather-condensation,
+.weather-bg--fog .weather-condensation,
+.weather-bg--night .weather-condensation {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

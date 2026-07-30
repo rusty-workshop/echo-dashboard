@@ -72,12 +72,17 @@ however you like, right down to matching your own wallpaper's colors.
   Minimal, Catppuccin, Nord, Gruvbox), switchable from the Settings page —
   each swaps palette, typography, shape, and shadow style over the same
   shared layout, no separate frontends to maintain.
-- **Animated weather backgrounds**: a condition-specific ambient layer in
-  front of every page and the wallpaper alike — sun glow, drifting
-  clouds, falling rain or snow, thunderstorm flashes, or a starfield at
-  night — like weather happening on the glass in front of the whole
-  display, all CSS, no JS per-frame cost. Automatically absent during
-  Ambient Mode and Bedside Mode, which already own the whole screen.
+- **Animated weather backgrounds** for all 8 conditions Aurora reports
+  (Clear, Partly Cloudy, Overcast, Fog, Rain, Snow, Thunderstorm, Night),
+  each with its own icon and its own effect - a condition-specific
+  ambient layer in front of every page and the wallpaper alike: rotating
+  sun rays, a sun peeking through drifting clouds, an overcast sky,
+  drifting fog banks with frosted screen edges, raindrops actually
+  running down the glass, gently drifting snow, thunderstorm flashes, or
+  a twinkling, phase-offset starfield at night - like weather happening
+  on the glass in front of the whole display, all CSS, no JS per-frame
+  cost. Automatically absent during Ambient Mode and Bedside Mode, which
+  already own the whole screen.
 - **Polish animations throughout**: rolling numbers for temperature and
   battery, a filling battery gauge, a weather-icon transition on change, a
   scroll-driven page-transition effect while swiping, and a livelier

@@ -1968,6 +1968,13 @@ async function enterBedsideMode() {
   const disabledAlarms = Array.from(latestWakeAlarmsById.values()).filter((alarm) => !alarm.enabled);
   await Promise.all(disabledAlarms.map((alarm) => setWakeAlarm({ ...alarm, enabled: true })));
 
+  // Going to bed means the phone should stay quiet too - same as tapping
+  // the DND toggle by hand, just automatic. exitBedsideMode() below
+  // undoes this unconditionally on the way out, same as it does for
+  // brightness/sound - Bedside Mode owns DND for the duration, it isn't
+  // tracking whether you'd already turned it on yourself beforehand.
+  await postSoundAction("/dnd/set?enabled=true");
+
   poll();
 }
 
@@ -1975,6 +1982,7 @@ function exitBedsideMode() {
   byId("bedside-overlay")?.classList.add("hidden");
   document.body.classList.remove("bedside-active");
   resetAmbientIdleTimer();
+  postSoundAction("/dnd/set?enabled=false").then(poll);
 }
 
 function setupBedsideMode() {

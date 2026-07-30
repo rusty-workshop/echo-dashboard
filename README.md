@@ -43,14 +43,18 @@ however you like, right down to matching your own wallpaper's colors.
   app, they stay in sync.
 - **Bedside Mode**: one tap (the moon icon next to the clock) starts rain,
   dims the display to a comfortable 50% (adjustable live via an on-screen
-  slider), and arms any disabled wake alarms — then summons a dedicated
-  full-screen view with a huge centered clock, tomorrow's first event, and
-  the Sound Machine controls, until you tap the exit button.
+  slider), silences the phone (flips Do Not Disturb on, same as the
+  Notifications card's toggle, and back off again on exit), and arms any
+  disabled wake alarms — then summons a dedicated full-screen view with a
+  huge centered clock, tomorrow's first event, and the Sound Machine
+  controls, until you tap the exit button.
 - **Ambient Mode**: after 30 minutes with no touch (never while Bedside
   Mode is active), a screensaver-style view takes over — huge clock, tiny
   weather line, dimmed — cycling your Aurora-picked photos with a slow
-  crossfade, or a twinkling starfield if you haven't picked any yet. Any
-  touch exits it instantly.
+  crossfade, or a twinkling starfield if you haven't picked any yet. The
+  same animated weather effect that plays over the main dashboard bleeds
+  through here too, dimmed along with everything else, instead of
+  disappearing behind the screensaver. Any touch exits it instantly.
 - **Configurable main-UI wallpaper**: the same photo library you pick for
   Ambient Mode drives the main dashboard's background too (scrimmed for
   legibility) — pick from the Aurora phone app whether it rotates the

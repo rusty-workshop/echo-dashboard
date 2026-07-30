@@ -1567,10 +1567,13 @@ body.ambient-active {
    visual - taps still reach the cards/buttons underneath regardless of
    this sitting on top of them. Everything here animates transform/opacity
    only - no per-frame JS, no repainted geometry - so it stays cheap on the
-   Echo Show's modest hardware. Deliberately below Ambient Mode (z-index 40)
-   and Bedside Mode (z-index 50) - both already paint an opaque full-screen
-   background above this, so it naturally disappears in either without
-   needing its own visibility logic. */
+   Echo Show's modest hardware. Deliberately below Bedside Mode (z-index
+   50), which already paints an opaque full-screen background above this -
+   "going to sleep" stays visually calm, no rain/snow over it. Ambient
+   Mode (z-index 40) is the opposite call: see the z-index override just
+   below - the same weather effect bleeds through its screensaver too,
+   dimmed by the same body-level brightness filter Ambient Mode already
+   applies to everything else, rather than disappearing behind it. */
 
 .weather-bg {
   position: fixed;
@@ -1579,6 +1582,21 @@ body.ambient-active {
   overflow: hidden;
   pointer-events: none;
   opacity: 0.5;
+}
+
+/* Raises the weather effect above .ambient-overlay (z-index 40) only
+   while Ambient Mode is active, so it paints over the screensaver's own
+   photo crossfade/starfield instead of staying hidden behind it. Scoped
+   to body.ambient-active rather than a permanent z-index bump so normal
+   dashboard viewing keeps the weather effect below the Retro CRT theme's
+   scanline overlay (z-index 3), which should always read as the
+   outermost "glass" layer. Opacity boosted too - body.ambient-active
+   already applies its own brightness() filter on top of this (see
+   below), and against a busy photo crossfade the effect all but
+   disappeared at the normal-viewing opacity once both dampen it together. */
+body.ambient-active .weather-bg {
+  z-index: 41;
+  opacity: 0.85;
 }
 
 .weather-bg--sunny::before {

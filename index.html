@@ -33,10 +33,12 @@
   -->
   <!-- The dashboard's wallpaper (see startWallpaperRotation() in
        script.js) - behind weather-bg so its ambient animated effects
-       (rain, snow, stars, ...) still layer on top of it. Cycles through
-       the same photo library Ambient Mode uses; empty (no photos
-       configured) shows nothing here at all. A dark scrim keeps card text
-       legible over an arbitrary photo. -->
+       (rain, snow, stars, ...) layer on top of it, and of every card and
+       page too (see .weather-bg's z-index in style.css) - like weather
+       happening on the glass in front of the whole display, not just the
+       photo behind it. Cycles through the same photo library Ambient Mode
+       uses; empty (no photos configured) shows nothing here at all. A dark
+       scrim keeps card text legible over an arbitrary photo. -->
   <div class="wallpaper-bg" id="wallpaper-bg" aria-hidden="true">
     <div class="wallpaper-photo-layer" id="wallpaper-bg-a"></div>
     <div class="wallpaper-photo-layer" id="wallpaper-bg-b"></div>

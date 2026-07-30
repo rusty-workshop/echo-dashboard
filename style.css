@@ -71,6 +71,9 @@
 
 * {
   box-sizing: border-box;
+  /* Kiosk touchscreen, not a browser tab - the WebView's default blue
+     flash on tap reads as a broken link, not a button press. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -116,7 +119,7 @@ input {
 
 .pager {
   position: relative;
-  z-index: 1; /* paint above the fixed #weather-bg layer regardless of DOM order */
+  z-index: 1; /* above the wallpaper (-1); the weather effect (2) still paints over this */
   height: 100vh;
   width: 100vw;
   display: flex;
@@ -1556,17 +1559,22 @@ body.ambient-active {
 }
 
 /* ---- Ambient weather backgrounds ------------------------------------------
-   A single fixed layer behind the pager (see .pager's z-index above),
-   swapped between 6 CSS-only treatments by setWeatherBackground() in
-   script.js. Everything here animates transform/opacity only - no
-   per-frame JS, no repainted geometry - so it stays cheap on the Echo
-   Show's modest hardware. Deliberately subdued: "ambient, not distracting"
-   was the brief, so opacity stays low and motion stays slow. */
+   A single fixed layer in front of the pager and the wallpaper both (like
+   weather happening on the glass in front of the whole display, not just
+   the wallpaper photo behind it), swapped between 6 CSS-only treatments by
+   setWeatherBackground() in script.js. pointer-events: none keeps it purely
+   visual - taps still reach the cards/buttons underneath regardless of
+   this sitting on top of them. Everything here animates transform/opacity
+   only - no per-frame JS, no repainted geometry - so it stays cheap on the
+   Echo Show's modest hardware. Deliberately below Ambient Mode (z-index 40)
+   and Bedside Mode (z-index 50) - both already paint an opaque full-screen
+   background above this, so it naturally disappears in either without
+   needing its own visibility logic. */
 
 .weather-bg {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 2;
   overflow: hidden;
   pointer-events: none;
   opacity: 0.5;
@@ -1896,13 +1904,14 @@ body.ambient-active {
 
 /* Scanline overlay - a plain striped semi-transparent layer, cheap to
    paint since it never changes (no animation), sits above the pager
-   (z-index: 1) and weather backgrounds (z-index: 0) but below the alarm
-   overlay (z-index: 100) so an alarm is never dimmed by it. */
+   (z-index: 1) and the weather effect (z-index: 2) but below Ambient/
+   Bedside Mode and the alarm overlay (z-index: 100) so an alarm is never
+   dimmed by it. */
 html[data-theme="retrocrt"]::after {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   pointer-events: none;
   background: repeating-linear-gradient(
     to bottom,

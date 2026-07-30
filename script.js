@@ -121,6 +121,8 @@ const ICONS = {
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
   cloud:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 19a4.5 4.5 0 0 1-.5-8.98A6 6 0 0 1 17.6 8.03 4.5 4.5 0 0 1 17 19H6.5z"/></svg>',
+  partlyCloudy:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="7" r="3.2"/><path d="M16 2.3v1.2M20.7 7h-1.2M12.9 3.9l.85.85M20.05 3.9l-.85.85" stroke-width="1.6"/><path d="M5.5 20a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 15.5 10.5 4 4 0 0 1 15 20H5.5z"/></svg>',
   rain:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 15a4.5 4.5 0 0 1-.5-8.98A6 6 0 0 1 17.6 4.03 4.5 4.5 0 0 1 17 15H6.5z"/><path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3"/></svg>',
   storm:
@@ -278,7 +280,7 @@ function formatTime12h(hhmm) {
 // Matches the exact condition strings Aurora's WeatherConditionMapper emits.
 const WEATHER_ICON_BY_CONDITION = {
   Clear: "sunny",
-  "Partly Cloudy": "cloud",
+  "Partly Cloudy": "partlyCloudy",
   Overcast: "cloud",
   Fog: "fog",
   Drizzle: "rain",
@@ -310,16 +312,15 @@ function applyAccentColor(condition) {
   document.documentElement.style.setProperty("--accent", ACCENT_BY_CONDITION[condition] || "#9aa5b1");
 }
 
-// One of 6 ambient background treatments - fog/partly-cloudy/overcast all
-// share the "clouds" drift since a dedicated haze effect for fog alone
-// isn't worth the extra variant. Night wins over a clear sky (stars, not
-// a sun glow) but rain/snow/storm keep their own look even after dark -
-// rain is still rain at 2am.
+// One of 8 ambient background treatments - each condition gets its own
+// look (see style.css's "Ambient weather backgrounds" section). Night
+// wins over a clear sky (stars, not a sun glow) but rain/snow/storm keep
+// their own look even after dark - rain is still rain at 2am.
 const WEATHER_BG_BY_CONDITION = {
   Clear: "sunny",
-  "Partly Cloudy": "clouds",
+  "Partly Cloudy": "partlycloudy",
   Overcast: "clouds",
-  Fog: "clouds",
+  Fog: "fog",
   Drizzle: "rain",
   Rain: "rain",
   "Rain Showers": "rain",

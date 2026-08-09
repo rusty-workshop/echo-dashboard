@@ -53,6 +53,13 @@
          (see .card-row/.card-notifications/.card-alarm flex-grow in
          style.css). -->
     <section class="page page-overview" id="page-overview" aria-label="Morning Overview">
+      <div class="severe-alert-banner hidden" id="severe-alert-banner" role="alert">
+        <span class="icon-slot small" id="severe-alert-icon" aria-hidden="true"></span>
+        <div class="severe-alert-text">
+          <div class="severe-alert-event" id="severe-alert-event"></div>
+          <div class="severe-alert-headline" id="severe-alert-headline"></div>
+        </div>
+      </div>
       <section class="hero-panel">
         <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
           <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
@@ -131,6 +138,9 @@
             Notifications
             <button class="notif-clear-btn" id="dnd-toggle-btn" type="button" aria-label="Toggle Do Not Disturb" aria-pressed="false">
               <span class="icon-slot small" id="dnd-toggle-icon" aria-hidden="true"></span>
+            </button>
+            <button class="notif-clear-btn" id="privacy-toggle-btn" type="button" aria-label="Toggle notification preview privacy" aria-pressed="false">
+              <span class="icon-slot small" id="privacy-toggle-icon" aria-hidden="true"></span>
             </button>
             <button class="notif-clear-btn" id="notif-clear-btn" type="button" aria-label="Clear all notifications">
               <span class="icon-slot small" id="notif-clear-icon" aria-hidden="true"></span>
@@ -222,6 +232,9 @@
             <button class="notif-clear-btn" id="dnd-toggle-btn-lg" type="button" aria-label="Toggle Do Not Disturb" aria-pressed="false">
               <span class="icon-slot small" id="dnd-toggle-icon-lg" aria-hidden="true"></span>
             </button>
+            <button class="notif-clear-btn" id="privacy-toggle-btn-lg" type="button" aria-label="Toggle notification preview privacy" aria-pressed="false">
+              <span class="icon-slot small" id="privacy-toggle-icon-lg" aria-hidden="true"></span>
+            </button>
             <button class="notif-clear-btn" id="notif-clear-btn-lg" type="button" aria-label="Clear all notifications">
               <span class="icon-slot small" id="notif-clear-icon-lg" aria-hidden="true"></span>
             </button>
@@ -236,6 +249,13 @@
     <!-- Page 3: Daily Info - a bigger weather readout plus the full
          schedule list. -->
     <section class="page page-daily" id="page-daily" aria-label="Daily Info">
+      <div class="severe-alert-banner hidden" id="severe-alert-banner-lg" role="alert">
+        <span class="icon-slot small" id="severe-alert-icon-lg" aria-hidden="true"></span>
+        <div class="severe-alert-text">
+          <div class="severe-alert-event" id="severe-alert-event-lg"></div>
+          <div class="severe-alert-headline" id="severe-alert-headline-lg"></div>
+        </div>
+      </div>
       <div class="page-body-split">
         <div class="hero-tile">
           <span class="icon-slot xlarge" id="weather-icon-lg" aria-hidden="true"></span>

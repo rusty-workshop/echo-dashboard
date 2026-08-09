@@ -156,6 +156,8 @@ const ICONS = {
   eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   eyeOff:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 5.1A11 11 0 0 1 12 5c7 0 11 7 11 7a13.2 13.2 0 0 1-3.05 3.9M6.5 6.5A13.2 13.2 0 0 0 1 12s4 7 11 7a10.6 10.6 0 0 0 4.24-.87"/><path d="M9.5 9.5a3 3 0 0 0 4.24 4.24"/><path d="M2 2l20 20"/></svg>',
+  radar:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5" stroke-width="1.4"/><path d="M12 12L12 4A8 8 0 0 1 18.5 16.8z" fill="currentColor" stroke="none" opacity="0.35"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
   alertTriangle:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01" stroke-width="2.4"/></svg>',
@@ -678,6 +680,55 @@ function renderWeather(weather) {
   latestSunset = weather.sunset || null;
 }
 
+const RADAR_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // don't hammer radar.weather.gov every 30s poll
+let lastRadarStation = null;
+let lastRadarRefreshAt = 0;
+
+/** Fetched directly from radar.weather.gov by the browser, not proxied
+ *  through Aurora - an <img src> load isn't subject to CORS (unlike a JS
+ *  fetch() reading the response body), so no backend involvement is
+ *  needed beyond Aurora resolving which station covers the current
+ *  location (see WeatherSnapshot.radarStation). Refreshed at most every
+ *  RADAR_REFRESH_INTERVAL_MS regardless of the 30s dashboard poll cadence -
+ *  the image is a few hundred KB and the underlying loop only updates
+ *  every few minutes anyway, so polling it every 30s would be wasteful.
+ *  setupRadar()'s onerror handler (not this function) is what hides the
+ *  panel if the image fails to load - see its comment. */
+function renderRadar(weather) {
+  const panel = byId("panel-radar");
+  const img = byId("radar-image");
+  if (!panel || !img) return;
+
+  const station = weather && weather.radarStation;
+  if (!station) {
+    panel.classList.add("hidden");
+    lastRadarStation = null;
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  setIcon("radar-title-icon", "radar");
+
+  const now = Date.now();
+  const stationChanged = station !== lastRadarStation;
+  if (stationChanged || now - lastRadarRefreshAt >= RADAR_REFRESH_INTERVAL_MS) {
+    img.src = `https://radar.weather.gov/ridge/standard/${station}_loop.gif?t=${now}`;
+    lastRadarStation = station;
+    lastRadarRefreshAt = now;
+  }
+}
+
+/** The Echo Show may have no route to the public internet even when it
+ *  can reach Aurora fine over the LAN (or radar.weather.gov itself may be
+ *  down) - unlike Aurora going offline, there's no cached fallback for an
+ *  image, so a load failure just hides the whole panel rather than
+ *  leaving a broken-image glyph on a kiosk display. */
+function setupRadar() {
+  byId("radar-image")?.addEventListener("error", () => {
+    byId("panel-radar")?.classList.add("hidden");
+  });
+}
+
 /** Ambient Mode's "tiny weather" line - just a plain text summary, not
  *  the full icon/high/low card treatment the other pages use. */
 function renderAmbientWeather(weather) {
@@ -1106,6 +1157,7 @@ function renderDashboard(data) {
   applyTileLayout(data.layout && data.layout.length > 0 ? data.layout : DEFAULT_TILE_LAYOUT);
   renderMorningBriefing(data);
   renderWeather(data.weather);
+  renderRadar(data.weather);
   renderAmbientWeather(data.weather);
   renderPhone(data.battery, data.charging, data.chargingEtaMinutes);
   renderBatteryWarning(data.battery, data.charging);
@@ -2309,6 +2361,7 @@ function init() {
   setupNotificationClearButtons();
   setupDndToggle();
   setupPrivacyToggle();
+  setupRadar();
   ensureSoundLibraryLoaded();
   // No explicit startWallpaperRotation() call here - applyWallpaperMode()
   // (called from renderDashboard, both for the cached render just above

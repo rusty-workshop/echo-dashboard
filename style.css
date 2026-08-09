@@ -10,6 +10,14 @@
    ========================================================================== */
 
 :root {
+  /* Every theme here is dark (see the [data-theme=...] blocks below) -
+     without this, native form control internals that this stylesheet
+     can't directly color (the wakealarm-time-input's "--:-- --" digits/
+     AM-PM segment, in particular) fall back to the WebView's own default
+     light-mode palette and render as black-on-black against this app's
+     dark backgrounds - invisible, not just low-contrast. */
+  color-scheme: dark;
+
   /* True black background: OLED-friendly, and reads as "premium display"
      even on the Echo Show's LCD panel. Surfaces sit a little above it,
      Material dark-theme style, so cards read as distinct elevated layers. */
@@ -93,6 +101,14 @@ body {
   user-select: none; /* this is a display, not a document */
   filter: brightness(1);
   transition: filter 3s ease;
+  /* Same reasoning as .ambient-clock-panel's own text-shadow below: the
+     clock, greeting, briefing lines, and hero-tile readouts sit directly
+     over the wallpaper with only a scrim behind them (cards have their
+     own solid background and don't need this - inherited here anyway,
+     but imperceptible against a near-black card). A bright or busy user
+     photo can otherwise wash out --text-secondary/--text-tertiary
+     entirely; this keeps everything legible regardless of the photo. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 2px 14px rgba(0, 0, 0, 0.45);
 }
 
 /* Bedside comfort at night: dims the whole display, not just one card -
@@ -881,9 +897,18 @@ input {
 
 .weather-range-lg {
   display: flex;
-  gap: 1.2em;
+  flex-wrap: wrap;
+  gap: 0.2em 1.2em;
   font-size: var(--fs-body-lg);
   color: var(--text-secondary);
+}
+
+/* Wraps whole phrase-to-phrase ("Sunrise 6:50 AM" / "Sunset 8:13 PM" on
+   separate lines) rather than mid-phrase, when the hero-tile column is
+   too narrow to fit both side by side - a plain flex-wrap alone would
+   otherwise let each span itself break between "6:50" and "AM". */
+.weather-range-lg > span {
+  white-space: nowrap;
 }
 
 .weather-range-lg b {

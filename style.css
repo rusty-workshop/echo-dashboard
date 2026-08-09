@@ -153,11 +153,17 @@ input {
 .page-overview {
   display: grid;
   grid-template-columns: minmax(260px, 38%) 1fr;
-  grid-template-rows: 1fr; /* the single implicit row must stretch, or it collapses to content height */
+  /* Row 1 (auto) is the severe alert banner - 0-height when hidden
+     (display:none removes it from grid layout entirely), so it never
+     steals space from row 2 when there's nothing to show. Row 2 is the
+     original hero-panel/card-grid pair, still side by side. */
+  grid-template-rows: auto 1fr;
   gap: clamp(0.75rem, 2vw, 1.5rem);
 }
 
 .hero-panel {
+  grid-column: 1;
+  grid-row: 2;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -286,6 +292,57 @@ input {
   width: fit-content;
 }
 
+/* ---- Severe weather alert banner ------------------------------------------
+   NWS-sourced, distinct from the umbrella rain nudge - this is for
+   Extreme/Severe/Moderate/Minor active alerts (tornado, flood, winter
+   storm, etc.), and stays visible on both the Overview and Daily Info
+   pages the whole time one's active, not just a momentary toast. Solid
+   (not tinted, unlike the low-battery banner) so it reads as genuinely
+   urgent, with a slow icon pulse to catch a glance without being frantic. */
+
+.severe-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 0.9em;
+  border-radius: 0.6em;
+  background: var(--accent-danger);
+  color: var(--surface);
+  box-shadow: 0 0.15em 0.6em color-mix(in srgb, var(--accent-danger) 45%, transparent);
+}
+
+.severe-alert-banner .icon-slot {
+  flex: none;
+  animation: severe-alert-pulse 2s ease-in-out infinite;
+}
+
+.severe-alert-text {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.severe-alert-event {
+  font-weight: 700;
+  font-size: var(--fs-body);
+}
+
+.severe-alert-headline {
+  font-size: var(--fs-caption);
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes severe-alert-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* ---- Card grid -----------------------------------------------------------
    Rows of two cards each, laid out with flexbox rather than CSS Grid.
    Grid's 1fr row-track sizing (grid-template-rows: repeat(3, 1fr) inside a
@@ -301,6 +358,8 @@ input {
    ".card-row:nth-child(2)" that would no longer line up with anything. */
 
 .card-grid {
+  grid-column: 2;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: clamp(0.5rem, 1.4vw, 1rem);
@@ -781,6 +840,21 @@ input {
   height: 100%;
   display: flex;
   gap: clamp(1rem, 3vw, 2rem);
+}
+
+/* Daily Info's own page becomes a column so an optional severe alert
+   banner above .page-body-split takes its natural height (0 when hidden)
+   instead of .page-body-split's fixed height:100% overflowing the page. */
+.page-daily {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.page-daily .page-body-split {
+  flex: 1;
+  height: auto;
+  min-height: 0;
 }
 
 .hero-tile {
@@ -1988,15 +2062,21 @@ body.ambient-active .weather-bg {
 
   .page-overview {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    /* Stacked single column now: banner, then hero-panel, then card-grid,
+       each on their own row instead of hero-panel/card-grid sharing row 2. */
+    grid-template-rows: auto auto 1fr;
   }
 
   .hero-panel {
+    grid-column: 1;
+    grid-row: 2;
     flex-direction: column;
     gap: 0.75rem;
   }
 
   .card-grid {
+    grid-column: 1;
+    grid-row: 3;
     height: auto;
   }
 

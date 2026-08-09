@@ -153,7 +153,12 @@ const ICONS = {
   trash:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 5.1A11 11 0 0 1 12 5c7 0 11 7 11 7a13.2 13.2 0 0 1-3.05 3.9M6.5 6.5A13.2 13.2 0 0 0 1 12s4 7 11 7a10.6 10.6 0 0 0 4.24-.87"/><path d="M9.5 9.5a3 3 0 0 0 4.24 4.24"/><path d="M2 2l20 20"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  alertTriangle:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01" stroke-width="2.4"/></svg>',
 };
 
 // ---------------------------------------------------------------------------
@@ -691,6 +696,26 @@ function renderBatteryWarning(battery, charging) {
   setText("battery-warning-text", `Phone battery at ${battery}% - plug it in`);
 }
 
+/** NWS-sourced severe weather alert (see WeatherAlertRepository on the
+ *  Aurora side) - shown on both the Overview and Daily Info pages, unlike
+ *  most render* functions which only touch one page's worth of ids, since
+ *  this needs to be visible no matter which page is currently swiped to. */
+function renderSevereAlert(alert) {
+  [
+    { banner: "severe-alert-banner", icon: "severe-alert-icon", event: "severe-alert-event", headline: "severe-alert-headline" },
+    { banner: "severe-alert-banner-lg", icon: "severe-alert-icon-lg", event: "severe-alert-event-lg", headline: "severe-alert-headline-lg" }
+  ].forEach((ids) => {
+    const banner = byId(ids.banner);
+    if (!banner) return;
+    banner.classList.toggle("hidden", !alert);
+    if (!alert) return;
+
+    setIcon(ids.icon, "alertTriangle");
+    setText(ids.event, alert.event);
+    setText(ids.headline, alert.headline);
+  });
+}
+
 function renderPhone(battery, charging, chargingEtaMinutes) {
   const icon = charging ? "batteryCharging" : "battery";
   const chargingText = charging ? "Charging" : "Not charging";
@@ -721,7 +746,15 @@ function renderPhone(battery, charging, chargingEtaMinutes) {
   }
 }
 
+// Purely a display preference (never sent to Aurora) - persisted so a
+// reboot/reload doesn't quietly flip previews back on.
+let hideNotificationPreviews = localStorage.getItem("hideNotificationPreviews") === "true";
+// Last groups rendered, kept only so toggling privacy can re-render
+// instantly instead of waiting for the next poll.
+let lastNotificationGroups = null;
+
 function renderNotifications(groups) {
+  lastNotificationGroups = groups;
   setIcon("notifications-title-icon", "bell");
   setIcon("notifications-title-icon-lg", "bell");
 
@@ -742,11 +775,14 @@ function renderNotifications(groups) {
  *  in place rather than collapsing on error, so a missing icon (e.g. the
  *  app was since uninstalled) doesn't throw the row's alignment off. The
  *  preview line is the latest notification's title/text, omitted entirely
- *  for a group that somehow has neither (e.g. a silent/data-only post). */
+ *  for a group that somehow has neither (e.g. a silent/data-only post), or
+ *  whenever the privacy toggle is on - count and app name still show either
+ *  way, since those aren't the sensitive part. */
 function notificationItemHtml(group) {
   const iconUrl = `${AURORA_BASE_URL}/notifications/icon?package=${encodeURIComponent(group.packageName)}`;
   const preview = [group.latestTitle, group.latestText].filter(Boolean).join(" — ");
-  const previewHtml = preview ? `<div class="notif-preview">${escapeHtml(preview)}</div>` : "";
+  const previewHtml =
+    preview && !hideNotificationPreviews ? `<div class="notif-preview">${escapeHtml(preview)}</div>` : "";
   return `<li class="notif-item">
       <img class="notif-icon" src="${iconUrl}" alt="" onerror="this.style.opacity='0'" />
       <div class="notif-item-main">
@@ -757,6 +793,31 @@ function notificationItemHtml(group) {
         ${previewHtml}
       </div>
     </li>`;
+}
+
+/** Toggles whether notification previews (title/text) render at all - just
+ *  a local display preference, nothing to tell Aurora about. Re-renders
+ *  immediately from the last-known groups so the effect is instant rather
+ *  than waiting for the next poll. */
+function renderPrivacyToggle() {
+  ["privacy-toggle-btn", "privacy-toggle-btn-lg"].forEach((id) => {
+    byId(id)?.classList.toggle("dnd-active", hideNotificationPreviews);
+    byId(id)?.setAttribute("aria-pressed", String(hideNotificationPreviews));
+  });
+  setIcon("privacy-toggle-icon", hideNotificationPreviews ? "eyeOff" : "eye");
+  setIcon("privacy-toggle-icon-lg", hideNotificationPreviews ? "eyeOff" : "eye");
+}
+
+function setupPrivacyToggle() {
+  renderPrivacyToggle();
+  const toggle = () => {
+    hideNotificationPreviews = !hideNotificationPreviews;
+    localStorage.setItem("hideNotificationPreviews", String(hideNotificationPreviews));
+    renderPrivacyToggle();
+    renderNotifications(lastNotificationGroups);
+  };
+  byId("privacy-toggle-btn")?.addEventListener("click", toggle);
+  byId("privacy-toggle-btn-lg")?.addEventListener("click", toggle);
 }
 
 /**
@@ -1048,6 +1109,7 @@ function renderDashboard(data) {
   renderAmbientWeather(data.weather);
   renderPhone(data.battery, data.charging, data.chargingEtaMinutes);
   renderBatteryWarning(data.battery, data.charging);
+  renderSevereAlert(data.weatherAlert);
   renderNotifications(data.notificationGroups);
   latestDndEnabled = data.dndEnabled;
   renderDnd(data.dndEnabled);
@@ -1105,7 +1167,6 @@ let isLocallyPlaying = false;
 let playbackOffsetSeconds = 0; // position within the loop, captured on pause
 let playbackStartContextTime = 0; // audioContext.currentTime the current source effectively started at
 
-let pendingAutoResume = null; // { soundId, offsetSeconds }, set if autoplay was blocked
 let sleepTimerHandle = null;
 let sleepTimerFadeHandle = null;
 
@@ -1141,22 +1202,23 @@ function stopSourceNode() {
   currentSource = null;
 }
 
+/**
+ * Never gates on ctx.state - a source can be created and start()'d on a
+ * suspended AudioContext perfectly validly, it just stays silent (queued)
+ * until the context actually resumes. Earlier this bailed out entirely
+ * when resume() didn't synchronously leave "suspended" (a real, fairly
+ * common outcome of autoplay policy on this kiosk WebView), which told
+ * Aurora "playing" while nothing local had actually started - the
+ * dashboard needed a second, unrelated touch (via the pointerdown
+ * fallback below) to notice and actually begin sound. Finishing the setup
+ * unconditionally means the very next resume - from this call's own
+ * attempt, or any later touch - makes the already-queued source audible
+ * immediately, with no second startLocalPlayback() call needed.
+ */
 async function startLocalPlayback(soundId, offsetSeconds = 0) {
   const ctx = ensureAudioContext();
-
   if (ctx.state === "suspended") {
-    try {
-      await ctx.resume();
-    } catch (err) {
-      pendingAutoResume = { soundId, offsetSeconds };
-      return;
-    }
-  }
-  if (ctx.state === "suspended") {
-    // resume() can resolve without actually leaving "suspended" under some
-    // autoplay policies - same fallback as the catch above.
-    pendingAutoResume = { soundId, offsetSeconds };
-    return;
+    ctx.resume().catch(() => {});
   }
 
   const buffer = await loadSoundBuffer(soundId);
@@ -1174,7 +1236,6 @@ async function startLocalPlayback(soundId, offsetSeconds = 0) {
   currentSoundId = soundId;
   playbackStartContextTime = ctx.currentTime - startOffset;
   isLocallyPlaying = true;
-  pendingAutoResume = null;
 }
 
 function pauseLocalPlayback() {
@@ -1200,25 +1261,20 @@ function setLocalVolume(percent) {
   gainNode.gain.value = percent / 100;
 }
 
-// Resolves autoplay-policy blocks: the first touch anywhere on the kiosk
-// screen after a reboot/reload unblocks the AudioContext and completes
-// whatever playback Aurora said should already be happening.
+// Resolves autoplay-policy blocks: startLocalPlayback()/startWakeAlarmSound()
+// already create and start() their source nodes unconditionally, so a
+// suspended AudioContext just means the source is queued but silent - the
+// first touch anywhere on the kiosk screen only needs to resume() the
+// context(s) for whatever's queued to become audible, nothing needs to be
+// restarted.
 document.addEventListener(
   "pointerdown",
   () => {
     if (audioContext && audioContext.state === "suspended") {
-      audioContext.resume().then(() => {
-        if (pendingAutoResume) {
-          const { soundId, offsetSeconds } = pendingAutoResume;
-          pendingAutoResume = null;
-          startLocalPlayback(soundId, offsetSeconds);
-        }
-      });
+      audioContext.resume().catch(() => {});
     }
-    // Same autoplay-policy unblock, for whichever alarm sound is currently
-    // supposed to be ringing but hasn't actually started yet.
-    if (isAlarmRinging && !wakeAlarmSource) {
-      startWakeAlarmSound(pendingAlarmSoundId);
+    if (wakeAlarmAudioContext && wakeAlarmAudioContext.state === "suspended") {
+      wakeAlarmAudioContext.resume().catch(() => {});
     }
   },
   { passive: true }
@@ -1595,7 +1651,6 @@ let wakeAlarmAudioContext = null;
 let wakeAlarmGainNode = null;
 let wakeAlarmSource = null;
 let isAlarmRinging = false;
-let pendingAlarmSoundId = null; // set if starting was blocked by autoplay policy
 
 function ensureWakeAlarmAudioContext() {
   if (!wakeAlarmAudioContext) {
@@ -1608,19 +1663,14 @@ function ensureWakeAlarmAudioContext() {
   return wakeAlarmAudioContext;
 }
 
+/** Same "never gate on ctx.state" fix as startLocalPlayback() above - see
+ *  its doc comment. An alarm silently failing to sound until a second,
+ *  unrelated touch is an even worse outcome than the ambient sound
+ *  machine doing the same, so this gets the identical treatment. */
 async function startWakeAlarmSound(soundId) {
   const ctx = ensureWakeAlarmAudioContext();
   if (ctx.state === "suspended") {
-    // Same autoplay-policy caveat as the ambient engine (see its comment
-    // above) - if this alarm is the very first audio this page ever tries
-    // to play with zero prior touches since load, the browser may block it
-    // until the next touch anywhere on the screen (see the shared
-    // pointerdown listener below).
-    await ctx.resume().catch(() => {});
-  }
-  if (ctx.state === "suspended") {
-    pendingAlarmSoundId = soundId;
-    return;
+    ctx.resume().catch(() => {});
   }
 
   const buffer = await loadSoundBuffer(soundId || DEFAULT_ALARM_SOUND_ID);
@@ -1632,7 +1682,6 @@ async function startWakeAlarmSound(soundId) {
   source.connect(wakeAlarmGainNode);
   source.start(0);
   wakeAlarmSource = source;
-  pendingAlarmSoundId = null;
 }
 
 function stopWakeAlarmSound() {
@@ -1690,6 +1739,13 @@ function reconcileWakeAlarm(ringingState) {
     postSoundAction("/sound/stop");
     startWakeAlarmSound(ringingState.soundId);
     showAlarmRingingOverlay(ringingState.label);
+    // A ringing alarm needs the full-screen dismiss/snooze overlay visible
+    // and audible - staying in Bedside Mode's own dim, quiet view would bury
+    // it, so an active bedside session ends automatically the moment an
+    // alarm goes off.
+    if (document.body.classList.contains("bedside-active")) {
+      exitBedsideMode();
+    }
   } else if (!shouldRing && isAlarmRinging) {
     isAlarmRinging = false;
     stopWakeAlarmSound();
@@ -2252,6 +2308,7 @@ function init() {
   setupWakeAlarmRingingControls();
   setupNotificationClearButtons();
   setupDndToggle();
+  setupPrivacyToggle();
   ensureSoundLibraryLoaded();
   // No explicit startWallpaperRotation() call here - applyWallpaperMode()
   // (called from renderDashboard, both for the cached render just above

@@ -1724,6 +1724,15 @@ function setupWakeAlarmForm() {
   buildWakeAlarmDayToggle();
   setupWakeAlarmList();
 
+  // This kiosk's WebView doesn't paint an empty <input type="time">'s
+  // placeholder digits at all (unlike desktop Chrome's "--:-- --") - it
+  // just renders a blank box until a value exists, which reads as broken
+  // rather than as an unset field. A sensible starting value sidesteps
+  // that entirely; the native picker (confirmed working - tapping it
+  // opens the OS clock dialog) is how the user actually changes it.
+  const timeInput = byId("wakealarm-time-input");
+  if (timeInput && !timeInput.value) timeInput.value = "07:00";
+
   byId("wakealarm-default-sound-picker")?.addEventListener("change", (event) => {
     postSoundAction(`/wakealarms/default-sound?id=${encodeURIComponent(event.target.value)}`);
   });

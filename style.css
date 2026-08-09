@@ -918,6 +918,29 @@ input {
   overflow: hidden;
 }
 
+/* ---- Radar panel (Daily Info page) ----------------------------------------
+   A live NWS ridge radar loop for whichever station covers the phone's
+   current location (Aurora resolves the station id; the image itself is
+   fetched directly from radar.weather.gov by the browser - see the
+   comment above refreshRadarImage() in script.js for why). Hidden
+   entirely rather than showing a broken-image icon whenever the station
+   is unknown or the image fails to load - a kiosk display should never
+   show a broken-asset glyph. */
+
+.panel-radar {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-image {
+  flex: 1;
+  min-height: 0;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
 .panel-title {
   margin: 0;
   flex: none;

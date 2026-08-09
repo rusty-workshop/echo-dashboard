@@ -161,6 +161,7 @@ const ICONS = {
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
   alertTriangle:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01" stroke-width="2.4"/></svg>',
+  leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-5 4.5-9 11-10 1 6.5-3 11-11 11"/><path d="M4 20c3-2 5.5-4.5 7-8"/></svg>',
 };
 
 // ---------------------------------------------------------------------------
@@ -680,6 +681,62 @@ function renderWeather(weather) {
   latestSunset = weather.sunset || null;
 }
 
+// Standard EPA breakpoints - a pure function of the number, so this stays
+// client-side rather than Aurora computing and sending a label.
+function aqiCategory(aqi) {
+  if (aqi <= 50) return "Good";
+  if (aqi <= 100) return "Moderate";
+  if (aqi <= 150) return "Unhealthy for Sensitive Groups";
+  if (aqi <= 200) return "Unhealthy";
+  if (aqi <= 300) return "Very Unhealthy";
+  return "Hazardous";
+}
+
+/** Daily Info page only, same as sunrise/sunset - hidden entirely rather
+ *  than showing a stale/placeholder reading when Aurora hasn't resolved
+ *  one yet (e.g. right after boot, before the first weather refresh). */
+function renderAirQuality(weather) {
+  const el = byId("weather-aqi-lg");
+  if (!el) return;
+
+  const aqi = weather && weather.airQualityIndex;
+  if (aqi == null) {
+    el.classList.add("hidden");
+    return;
+  }
+
+  el.classList.remove("hidden");
+  setIcon("weather-aqi-icon-lg", "leaf");
+  setText("weather-aqi-text-lg", `AQI ${aqi} - ${aqiCategory(aqi)}`);
+}
+
+/** Today plus the next few days (see WeatherConfig.FORECAST_DAYS on the
+ *  Aurora side) - Daily Info page only, same reasoning as the radar panel
+ *  for why it doesn't also try to fit in the compact Overview card. */
+function renderDailyForecast(weather) {
+  const strip = byId("forecast-strip");
+  if (!strip) return;
+
+  const days = (weather && weather.dailyForecast) || [];
+  if (days.length === 0) {
+    strip.classList.add("hidden");
+    return;
+  }
+
+  strip.classList.remove("hidden");
+  strip.innerHTML = days
+    .map((day, index) => {
+      const label = index === 0 ? "Today" : new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" });
+      const icon = WEATHER_ICON_BY_CONDITION[day.condition] || "cloud";
+      return `<div class="forecast-day">
+          <div class="forecast-day-label">${escapeHtml(label)}</div>
+          <span class="icon-slot" data-icon="${icon}">${ICONS[icon] || ""}</span>
+          <div class="forecast-day-temps"><b>${Math.round(day.high)}°</b><span>${Math.round(day.low)}°</span></div>
+        </div>`;
+    })
+    .join("");
+}
+
 const RADAR_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // don't hammer radar.weather.gov every 30s poll
 let lastRadarStation = null;
 let lastRadarRefreshAt = 0;
@@ -1158,6 +1215,8 @@ function renderDashboard(data) {
   renderMorningBriefing(data);
   renderWeather(data.weather);
   renderRadar(data.weather);
+  renderAirQuality(data.weather);
+  renderDailyForecast(data.weather);
   renderAmbientWeather(data.weather);
   renderPhone(data.battery, data.charging, data.chargingEtaMinutes);
   renderBatteryWarning(data.battery, data.charging);

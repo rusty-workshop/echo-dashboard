@@ -904,6 +904,73 @@ input {
   color: inherit;
 }
 
+.weather-aqi-lg {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-body-lg);
+  color: var(--text-secondary);
+}
+
+.weather-aqi-lg .icon-slot.small {
+  color: inherit;
+}
+
+/* ---- Daily forecast strip (Daily Info page) -------------------------------
+   Today plus the next few days, each a small column of weekday/icon/
+   high-low - sits above the hero-tile/radar/schedule row so it doesn't
+   compete with them for the same horizontal space. Hidden entirely
+   (rather than a placeholder row) until Aurora reports at least one day. */
+
+.forecast-strip {
+  display: flex;
+  gap: clamp(0.4rem, 1vw, 0.75rem);
+  padding: clamp(0.5rem, 1.2vh, 0.8rem) clamp(0.8rem, 1.6vw, 1.2rem);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.forecast-day {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2em;
+}
+
+.forecast-day-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.forecast-day .icon-slot {
+  width: clamp(1.3rem, 2.6vw, 1.7rem);
+  height: clamp(1.3rem, 2.6vw, 1.7rem);
+  color: var(--accent);
+  transition: color var(--transition-color);
+}
+
+.forecast-day-temps {
+  font-size: var(--fs-caption);
+  display: flex;
+  gap: 0.4em;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-day-temps b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.forecast-day-temps span {
+  color: var(--text-tertiary);
+}
+
 .panel {
   flex: 1.3;
   min-width: 0;

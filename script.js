@@ -585,6 +585,70 @@ function setupDimOffsetSlider() {
   });
 }
 
+/** Populates the name field from /dashboard's userName on every poll -
+ *  skipped while the field is focused so a live poll never overwrites
+ *  what's mid-typing (same reasoning as every other "don't clobber active
+ *  input" check on this page). */
+function renderProfileSettings(data) {
+  const input = byId("settings-name-input");
+  if (!input || document.activeElement === input) return;
+  input.value = data.userName || "";
+}
+
+/** Commits on blur, not per keystroke - typing "R", "Ru", "Rus"... would
+ *  otherwise fire a POST per character. Empty values are left alone rather
+ *  than clearing the name server-side, since SetUserNameRoute rejects a
+ *  blank value anyway (see SettingsRoutes.kt). */
+function setupProfileSettings() {
+  const input = byId("settings-name-input");
+  if (!input) return;
+
+  input.addEventListener("blur", () => {
+    const value = input.value.trim();
+    if (value) postAction(`/settings/name?value=${encodeURIComponent(value)}`);
+  });
+}
+
+/** Not part of /dashboard (it only matters on this page, same reasoning as
+ *  GET /notifications/apps) - lazily fetched once the first time the
+ *  Settings page is scrolled to (see ensureNotificationAppsLoaded()'s
+ *  sibling hook in setActivePage()). Aurora itself validates/normalizes
+ *  the prefix (see normalizeSubnetPrefix() on that side) - this just shows
+ *  whatever comes back. */
+let homeNetworkLoaded = false;
+
+async function ensureHomeNetworkLoaded() {
+  if (homeNetworkLoaded) return;
+  const input = byId("settings-network-input");
+  if (!input) return;
+  homeNetworkLoaded = true;
+
+  try {
+    const response = await fetch(`${AURORA_BASE_URL}/settings/home-network`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (document.activeElement !== input) {
+      input.value = (data.prefix || "").replace(/\.$/, "");
+    }
+  } catch (err) {
+    homeNetworkLoaded = false; // allow a retry next time the page is visited
+  }
+}
+
+/** Commits on blur, same shape as setupProfileSettings() - a malformed
+ *  value is silently rejected by SetHomeNetworkRoute (400, no change
+ *  applied) rather than validated here too, avoiding two copies of the
+ *  same octet-parsing logic. */
+function setupHomeNetworkSettings() {
+  const input = byId("settings-network-input");
+  if (!input) return;
+
+  input.addEventListener("blur", () => {
+    const value = input.value.trim();
+    if (value) postAction(`/settings/home-network?prefix=${encodeURIComponent(value)}`);
+  });
+}
+
 function clockTimeParts(now, timeZone) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -1006,9 +1070,67 @@ function setupNotificationClearButtons() {
   setIcon("notif-clear-icon", "trash");
   setIcon("notif-clear-icon-lg", "trash");
 
-  const clearAll = () => postSoundAction("/notifications/clear").then(poll);
+  const clearAll = () => postAction("/notifications/clear").then(poll);
   byId("notif-clear-btn")?.addEventListener("click", clearAll);
   byId("notif-clear-btn-lg")?.addEventListener("click", clearAll);
+}
+
+/** Settings page only - the full "every app that's ever notified, with a
+ *  switch" list, GET /notifications/apps rather than folded into the
+ *  regular /dashboard poll since it only matters here (see
+ *  KnownNotificationAppsRoute's doc comment on the Aurora side). Loaded
+ *  once, lazily, the first time the Settings page is actually scrolled to
+ *  (see setActivePage() in setupPager()) - re-fetched on every visit after
+ *  that isn't needed since a toggle here already updates its own row
+ *  optimistically. */
+let notificationAppsLoaded = false;
+
+function notificationAppRowHtml(app) {
+  const iconUrl = `${AURORA_BASE_URL}/notifications/icon?package=${encodeURIComponent(app.packageName)}`;
+  const shown = !app.blocked;
+  return `<div class="settings-app-row" data-package="${escapeHtml(app.packageName)}">
+      <img class="settings-app-icon" src="${iconUrl}" alt="" onerror="this.style.opacity='0'" />
+      <span class="settings-app-label">${escapeHtml(app.label)}</span>
+      <button class="settings-switch" role="switch" aria-checked="${shown}" aria-label="Show ${escapeHtml(app.label)} notifications"></button>
+    </div>`;
+}
+
+async function ensureNotificationAppsLoaded() {
+  if (notificationAppsLoaded) return;
+  const list = byId("settings-app-list");
+  if (!list) return;
+  notificationAppsLoaded = true;
+
+  try {
+    const response = await fetch(`${AURORA_BASE_URL}/notifications/apps`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const apps = await response.json();
+    list.innerHTML =
+      apps.length === 0
+        ? '<div class="settings-app-empty">No apps have posted notifications yet</div>'
+        : apps.map(notificationAppRowHtml).join("");
+  } catch (err) {
+    notificationAppsLoaded = false; // allow a retry next time the page is visited
+  }
+}
+
+function setupNotificationAppToggles() {
+  const list = byId("settings-app-list");
+  if (!list) return;
+
+  list.addEventListener("click", (event) => {
+    const button = event.target.closest(".settings-switch");
+    if (!button) return;
+    const row = button.closest(".settings-app-row");
+    const packageName = row?.dataset.package;
+    if (!packageName) return;
+
+    const nowShown = button.getAttribute("aria-checked") !== "true";
+    button.setAttribute("aria-checked", String(nowShown));
+    postAction(
+      `/notifications/block?package=${encodeURIComponent(packageName)}&blocked=${!nowShown}`
+    ).then(poll);
+  });
 }
 
 /** Reflects the phone's actual Do Not Disturb state (see dndEnabled in
@@ -1030,7 +1152,7 @@ let latestDndEnabled = false;
  *  controls: the next poll always corrects this if Aurora's actual state
  *  ends up different (e.g. DND flipped manually on the phone itself). */
 function setupDndToggle() {
-  const toggle = () => postSoundAction(`/dnd/set?enabled=${!latestDndEnabled}`).then(poll);
+  const toggle = () => postAction(`/dnd/set?enabled=${!latestDndEnabled}`).then(poll);
   byId("dnd-toggle-btn")?.addEventListener("click", toggle);
   byId("dnd-toggle-btn-lg")?.addEventListener("click", toggle);
 }
@@ -1277,9 +1399,107 @@ function applyTileLayout(tiles) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard Layout settings (Settings page) - the write side of the same
+// `layout` field applyTileLayout() above already reads every poll. See
+// LayoutRepository/TileConfig on the Aurora side (POST /layout).
+// ---------------------------------------------------------------------------
+
+const TILE_LABELS = {
+  weather: "Weather",
+  phone: "Phone",
+  notifications: "Notifications",
+  schedule: "Today's Schedule",
+  alarm: "Next Alarm",
+  sound: "Sound Machine",
+};
+
+let lastLayoutTiles = null;
+
+function layoutRowHtml(tile, index, tiles) {
+  const label = TILE_LABELS[tile.id] || tile.id;
+  const sizes = ["small", "medium", "large"];
+  const sizeButtons = sizes
+    .map(
+      (size) =>
+        `<button class="settings-size-btn${tile.size === size ? " active" : ""}" type="button" data-size="${size}">${size[0].toUpperCase()}</button>`
+    )
+    .join("");
+  return `<div class="settings-layout-row" data-tile-id="${tile.id}">
+      <span class="settings-app-label">${escapeHtml(label)}</span>
+      <div class="settings-size-segmented">${sizeButtons}</div>
+      <button class="settings-reorder-btn" type="button" data-dir="up" aria-label="Move ${escapeHtml(label)} up"${index === 0 ? " disabled" : ""}>&uarr;</button>
+      <button class="settings-reorder-btn" type="button" data-dir="down" aria-label="Move ${escapeHtml(label)} down"${index === tiles.length - 1 ? " disabled" : ""}>&darr;</button>
+      <button class="settings-switch" role="switch" aria-checked="${tile.visible}" aria-label="Show ${escapeHtml(label)} tile"></button>
+    </div>`;
+}
+
+function renderLayoutSettings(data) {
+  const list = byId("settings-layout-list");
+  if (!list) return;
+  const tiles = data.layout && data.layout.length > 0 ? data.layout : DEFAULT_TILE_LAYOUT;
+  lastLayoutTiles = tiles;
+  list.innerHTML = tiles.map(layoutRowHtml).join("");
+}
+
+async function postLayoutUpdate(tiles) {
+  lastLayoutTiles = tiles;
+  renderLayoutSettings({ layout: tiles });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    await fetch(`${AURORA_BASE_URL}/layout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tiles),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    // Best-effort, same reasoning as postAction().
+  } finally {
+    clearTimeout(timeout);
+  }
+  poll(); // also re-applies the layout to the actual Overview grid
+}
+
+function setupLayoutSettings() {
+  const list = byId("settings-layout-list");
+  if (!list) return;
+
+  list.addEventListener("click", (event) => {
+    if (!lastLayoutTiles) return;
+    const row = event.target.closest(".settings-layout-row");
+    if (!row) return;
+    const index = lastLayoutTiles.findIndex((t) => t.id === row.dataset.tileId);
+    if (index === -1) return;
+
+    const sizeBtn = event.target.closest(".settings-size-btn");
+    const reorderBtn = event.target.closest(".settings-reorder-btn");
+    const switchBtn = event.target.closest(".settings-switch");
+
+    const tiles = lastLayoutTiles.map((t) => ({ ...t }));
+    if (sizeBtn) {
+      tiles[index].size = sizeBtn.dataset.size;
+    } else if (reorderBtn) {
+      const swapWith = reorderBtn.dataset.dir === "up" ? index - 1 : index + 1;
+      if (swapWith < 0 || swapWith >= tiles.length) return;
+      [tiles[index], tiles[swapWith]] = [tiles[swapWith], tiles[index]];
+    } else if (switchBtn) {
+      tiles[index].visible = !tiles[index].visible;
+    } else {
+      return;
+    }
+
+    postLayoutUpdate(tiles);
+  });
+}
+
 function renderDashboard(data) {
   applyTileLayout(data.layout && data.layout.length > 0 ? data.layout : DEFAULT_TILE_LAYOUT);
+  renderLayoutSettings(data);
   renderMorningBriefing(data);
+  renderProfileSettings(data);
   renderWeather(data.weather);
   renderRadar(data.weather);
   renderAirQuality(data.weather);
@@ -1300,6 +1520,7 @@ function renderDashboard(data) {
   syncDefaultAlarmSoundPicker(data.defaultAlarmSoundId);
   reconcileWakeAlarm(data.wakeAlarmRinging);
   applyWallpaperMode(data);
+  renderWallpaperSettings(data);
 }
 
 // ---------------------------------------------------------------------------
@@ -1514,7 +1735,7 @@ function fadeOutAndStop() {
       sleepTimerFadeHandle = null;
       stopLocalPlaybackFully();
       gainNode.gain.value = startGain; // restored for the next play()
-      postSoundAction("/sound/stop");
+      postAction("/sound/stop");
       poll();
     }
   }, stepMs);
@@ -1561,13 +1782,16 @@ function resolveSoundIdFromDisplayName(displayName) {
   return match ? match.value : null;
 }
 
-async function postSoundAction(path) {
+/** Generic fire-and-forget POST to Aurora - despite the name's origin
+ *  (Sound Machine controls were the first user), this is now the shared
+ *  helper for every simple query-string POST across the dashboard. */
+async function postAction(path) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     await fetch(`${AURORA_BASE_URL}${path}`, { method: "POST", signal: controller.signal });
   } catch (err) {
-    // Best-effort - local playback already reflects the action; the next
+    // Best-effort - local state already reflects the action; the next
     // poll/reconcile corrects Aurora's state if this request was dropped.
   } finally {
     clearTimeout(timeout);
@@ -1625,19 +1849,19 @@ function setupSoundControlsFor(idSuffix) {
   playPauseButton?.addEventListener("click", async () => {
     if (isLocallyPlaying) {
       pauseLocalPlayback();
-      await postSoundAction("/sound/pause");
+      await postAction("/sound/pause");
     } else {
       const soundId = soundPicker?.value || currentSoundId;
       if (!soundId) return;
       await startLocalPlayback(soundId, currentSoundId === soundId ? playbackOffsetSeconds : 0);
-      await postSoundAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
+      await postAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
     }
     poll();
   });
 
   stopButton?.addEventListener("click", async () => {
     stopLocalPlaybackFully();
-    await postSoundAction("/sound/stop");
+    await postAction("/sound/stop");
     poll();
   });
 
@@ -1645,12 +1869,12 @@ function setupSoundControlsFor(idSuffix) {
     const soundId = soundPicker.value;
     if (!soundId) return;
     await startLocalPlayback(soundId, 0);
-    await postSoundAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
+    await postAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
     poll();
   });
 
   timerPicker?.addEventListener("change", async () => {
-    await postSoundAction(`/sound/timer?preset=${encodeURIComponent(timerPicker.value)}`);
+    await postAction(`/sound/timer?preset=${encodeURIComponent(timerPicker.value)}`);
     // Don't guess locally - clear any old countdown and let reconcile()
     // pick up Aurora's freshly-resolved value (handles "until alarm",
     // which only Aurora can compute) on the very next poll.
@@ -1665,7 +1889,7 @@ function setupSoundControlsFor(idSuffix) {
     setLocalVolume(percent);
     clearTimeout(volumeDebounceHandle);
     volumeDebounceHandle = setTimeout(() => {
-      postSoundAction(`/sound/volume?value=${percent}`);
+      postAction(`/sound/volume?value=${percent}`);
     }, VOLUME_DEBOUNCE_MS);
   });
 }
@@ -1770,7 +1994,7 @@ function setupWakeAlarmList() {
     if (!event.target.closest(".wakealarm-delete")) return;
     const id = event.target.closest("[data-id]")?.dataset.id;
     if (!id) return;
-    postSoundAction(`/wakealarms/delete?id=${encodeURIComponent(id)}`).then(poll);
+    postAction(`/wakealarms/delete?id=${encodeURIComponent(id)}`).then(poll);
   });
 }
 
@@ -1784,7 +2008,7 @@ function setWakeAlarm(alarm) {
     label: alarm.label || "",
     soundId: alarm.soundId || "",
   });
-  return postSoundAction(`/wakealarms/set?${params.toString()}`).then(poll);
+  return postAction(`/wakealarms/set?${params.toString()}`).then(poll);
 }
 
 /** Reflects Aurora's currently-configured default alarm sound in the
@@ -1816,7 +2040,7 @@ function setupWakeAlarmForm() {
   if (timeInput && !timeInput.value) timeInput.value = "07:00";
 
   byId("wakealarm-default-sound-picker")?.addEventListener("change", (event) => {
-    postSoundAction(`/wakealarms/default-sound?id=${encodeURIComponent(event.target.value)}`);
+    postAction(`/wakealarms/default-sound?id=${encodeURIComponent(event.target.value)}`);
   });
 
   byId("wakealarm-add-btn")?.addEventListener("click", () => {
@@ -1950,7 +2174,7 @@ function reconcileWakeAlarm(ringingState) {
   if (shouldRing && !isAlarmRinging) {
     isAlarmRinging = true;
     stopLocalPlaybackFully();
-    postSoundAction("/sound/stop");
+    postAction("/sound/stop");
     startWakeAlarmSound(ringingState.soundId);
     showAlarmRingingOverlay(ringingState.label);
     // A ringing alarm needs the full-screen dismiss/snooze overlay visible
@@ -1980,11 +2204,11 @@ function setupWakeAlarmRingingControls() {
   });
 
   byId("alarm-dismiss-btn")?.addEventListener("click", () => {
-    postSoundAction("/wakealarms/dismiss").then(poll);
+    postAction("/wakealarms/dismiss").then(poll);
   });
   byId("alarm-snooze-btn")?.addEventListener("click", () => {
     const minutes = durationPicker?.value || "9";
-    postSoundAction(`/wakealarms/snooze?minutes=${encodeURIComponent(minutes)}`).then(poll);
+    postAction(`/wakealarms/snooze?minutes=${encodeURIComponent(minutes)}`).then(poll);
   });
 }
 
@@ -2134,6 +2358,10 @@ function setupPager() {
 
   const setActivePage = (index) => {
     dots.forEach((dot, i) => dot.classList.toggle("active", i === index));
+    if (pages[index]?.id === "page-settings") {
+      ensureNotificationAppsLoaded();
+      ensureHomeNetworkLoaded();
+    }
   };
   setActivePage(0);
 
@@ -2266,7 +2494,7 @@ async function enterBedsideMode() {
   setBedsideBrightness(BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT);
 
   await startLocalPlayback(BEDSIDE_RAIN_SOUND_ID, 0);
-  await postSoundAction(`/sound/play?id=${BEDSIDE_RAIN_SOUND_ID}`);
+  await postAction(`/sound/play?id=${BEDSIDE_RAIN_SOUND_ID}`);
 
   const disabledAlarms = Array.from(latestWakeAlarmsById.values()).filter((alarm) => !alarm.enabled);
   await Promise.all(disabledAlarms.map((alarm) => setWakeAlarm({ ...alarm, enabled: true })));
@@ -2276,7 +2504,7 @@ async function enterBedsideMode() {
   // undoes this unconditionally on the way out, same as it does for
   // brightness/sound - Bedside Mode owns DND for the duration, it isn't
   // tracking whether you'd already turned it on yourself beforehand.
-  await postSoundAction("/dnd/set?enabled=true");
+  await postAction("/dnd/set?enabled=true");
 
   poll();
 }
@@ -2285,7 +2513,7 @@ function exitBedsideMode() {
   byId("bedside-overlay")?.classList.add("hidden");
   document.body.classList.remove("bedside-active");
   resetAmbientIdleTimer();
-  postSoundAction("/dnd/set?enabled=false").then(poll);
+  postAction("/dnd/set?enabled=false").then(poll);
 }
 
 function setupBedsideMode() {
@@ -2310,7 +2538,11 @@ function setupBedsideMode() {
 // state, not an idle one.
 // ---------------------------------------------------------------------------
 
-const AMBIENT_IDLE_MS = 30 * 60 * 1000;
+// Configurable from the Settings page (see setupAmbientTimeoutSetting()) -
+// a plain localStorage setting, no Aurora involvement, since idle timeout
+// is purely this dashboard's own behavior.
+const AMBIENT_IDLE_TIMEOUT_KEY = "aurora-dashboard:ambient-idle-minutes";
+let ambientIdleMinutes = parseInt(localStorage.getItem(AMBIENT_IDLE_TIMEOUT_KEY), 10) || 30;
 const AMBIENT_PHOTO_INTERVAL_MS = 30 * 1000;
 const AMBIENT_DEFAULT_BRIGHTNESS_PERCENT = 60;
 
@@ -2477,6 +2709,140 @@ async function applyWallpaperMode(data) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Wallpaper settings (Settings page) - the write side of the same mode/
+// single-photo/schedule fields applyWallpaperMode() above already reads
+// every poll. Shares ambientPhotoIds rather than fetching the library
+// again, since it's genuinely the same photo set Ambient Mode uses.
+// ---------------------------------------------------------------------------
+
+let lastWallpaperData = null;
+// Which photo the schedule "Add" row will use next - a photo grid tap
+// means something different depending on mode (see setupWallpaperSettings):
+// an immediate single-photo POST in Single mode, vs just staging a
+// selection here in Scheduled mode until a time is picked and "Add" is
+// pressed.
+let wallpaperPendingPhotoId = null;
+
+function renderWallpaperPhotoGrid(data) {
+  const grid = byId("wallpaper-photo-grid");
+  if (!grid) return;
+  if (ambientPhotoIds.length === 0) {
+    grid.innerHTML = '<div class="settings-photo-empty">No photos yet - choose some from the Aurora phone app</div>';
+    return;
+  }
+  const selectedId = data.wallpaperMode === "single" ? data.wallpaperSinglePhotoId : wallpaperPendingPhotoId;
+  grid.innerHTML = ambientPhotoIds
+    .map((id) => {
+      const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(id)}`;
+      const active = id === selectedId;
+      return `<button class="settings-photo-thumb${active ? " active" : ""}" type="button" data-photo-id="${escapeHtml(id)}" style="background-image:url('${url}')" aria-label="Select photo"></button>`;
+    })
+    .join("");
+}
+
+function renderWallpaperSchedule(entries) {
+  const list = byId("wallpaper-schedule-list");
+  if (!list) return;
+  if (!entries || entries.length === 0) {
+    list.innerHTML = '<div class="settings-photo-empty">No scheduled entries yet</div>';
+    return;
+  }
+  list.innerHTML = entries
+    .map((entry) => {
+      const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(entry.photoId)}`;
+      return `<div class="settings-schedule-row" data-photo-id="${escapeHtml(entry.photoId)}" data-time="${escapeHtml(entry.time)}">
+          <span class="settings-photo-thumb" style="background-image:url('${url}')"></span>
+          <span class="settings-schedule-time">${escapeHtml(entry.time)}</span>
+          <button class="settings-schedule-remove" type="button" aria-label="Remove scheduled entry">&times;</button>
+        </div>`;
+    })
+    .join("");
+}
+
+function renderWallpaperSettings(data) {
+  const segmented = byId("wallpaper-mode-segmented");
+  if (!segmented) return;
+  lastWallpaperData = data;
+
+  segmented.querySelectorAll(".settings-segment").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === data.wallpaperMode);
+  });
+
+  const isScheduled = data.wallpaperMode === "scheduled";
+  byId("wallpaper-schedule-add-row")?.classList.toggle("hidden", !isScheduled);
+  byId("wallpaper-schedule-list")?.classList.toggle("hidden", !isScheduled);
+
+  // The library may not be loaded yet on the very first render - re-render
+  // the grid once it is, rather than blocking renderDashboard on it.
+  ensureAmbientPhotosLoaded().then(() => renderWallpaperPhotoGrid(data));
+  renderWallpaperSchedule(data.wallpaperSchedule);
+}
+
+/** The one place this dashboard POSTs a JSON body rather than query
+ *  params - a list of {photoId, time} entries doesn't fit a query string
+ *  (see SetWallpaperScheduleRoute's doc comment on the Aurora side for the
+ *  matching backend note). */
+async function postWallpaperSchedule(entries) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    await fetch(`${AURORA_BASE_URL}/photos/wallpaper/schedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entries),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    // Best-effort, same reasoning as postAction().
+  } finally {
+    clearTimeout(timeout);
+  }
+  poll();
+}
+
+function setupWallpaperSettings() {
+  const segmented = byId("wallpaper-mode-segmented");
+  if (!segmented) return;
+
+  segmented.addEventListener("click", (event) => {
+    const btn = event.target.closest(".settings-segment");
+    if (!btn) return;
+    postAction(`/photos/wallpaper/mode?mode=${encodeURIComponent(btn.dataset.mode)}`).then(poll);
+  });
+
+  byId("wallpaper-photo-grid")?.addEventListener("click", (event) => {
+    const thumb = event.target.closest(".settings-photo-thumb");
+    if (!thumb) return;
+    const photoId = thumb.dataset.photoId;
+    if (lastWallpaperData?.wallpaperMode === "scheduled") {
+      wallpaperPendingPhotoId = photoId;
+      renderWallpaperPhotoGrid(lastWallpaperData);
+    } else {
+      postAction(`/photos/wallpaper/single?photoId=${encodeURIComponent(photoId)}`).then(poll);
+    }
+  });
+
+  byId("wallpaper-schedule-add-btn")?.addEventListener("click", () => {
+    const time = byId("wallpaper-schedule-time")?.value;
+    if (!time || !wallpaperPendingPhotoId) return;
+    const entries = [...(lastWallpaperData?.wallpaperSchedule || []), { photoId: wallpaperPendingPhotoId, time }].sort(
+      (a, b) => a.time.localeCompare(b.time)
+    );
+    postWallpaperSchedule(entries);
+  });
+
+  byId("wallpaper-schedule-list")?.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest(".settings-schedule-remove");
+    if (!removeBtn) return;
+    const row = removeBtn.closest(".settings-schedule-row");
+    const entries = (lastWallpaperData?.wallpaperSchedule || []).filter(
+      (entry) => !(entry.photoId === row.dataset.photoId && entry.time === row.dataset.time)
+    );
+    postWallpaperSchedule(entries);
+  });
+}
+
 async function enterAmbientMode() {
   if (document.body.classList.contains("bedside-active")) return;
   await ensureAmbientPhotosLoaded();
@@ -2506,7 +2872,17 @@ function resetAmbientIdleTimer() {
   clearTimeout(ambientIdleTimer);
   ambientIdleTimer = setTimeout(() => {
     if (!document.body.classList.contains("bedside-active")) enterAmbientMode();
-  }, AMBIENT_IDLE_MS);
+  }, ambientIdleMinutes * 60 * 1000);
+}
+
+function setupAmbientTimeoutSetting() {
+  const select = byId("settings-ambient-timeout");
+  if (!select) return;
+  select.value = String(ambientIdleMinutes);
+  select.addEventListener("change", () => {
+    ambientIdleMinutes = parseInt(select.value, 10) || 30;
+    localStorage.setItem(AMBIENT_IDLE_TIMEOUT_KEY, String(ambientIdleMinutes));
+  });
 }
 
 function setupAmbientMode() {
@@ -2556,9 +2932,15 @@ function init() {
   setupNotificationClearButtons();
   setupDndToggle();
   setupPrivacyToggle();
+  setupNotificationAppToggles();
   setupRadar();
   setupManualRefresh();
   setupDimOffsetSlider();
+  setupProfileSettings();
+  setupWallpaperSettings();
+  setupLayoutSettings();
+  setupAmbientTimeoutSetting();
+  setupHomeNetworkSettings();
   ensureSoundLibraryLoaded();
   // No explicit startWallpaperRotation() call here - applyWallpaperMode()
   // (called from renderDashboard, both for the cached render just above

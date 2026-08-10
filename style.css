@@ -1408,36 +1408,443 @@ body.has-severe-alert .page-daily .hero-tile {
 }
 
 /* ---- Page 6: Settings -------------------------------------------------------
-   Just the theme picker for now. See setupThemePicker() in script.js and
-   the [data-theme] blocks near the end of this file - one shared layout,
-   swapped palette/typography/shape per theme. */
+   Covers most of what used to be phone-app-only: profile, notifications,
+   wallpaper, dashboard layout, display, ambient mode, home network, and
+   theme. Unlike every other page (deliberately overflow:hidden, "nothing
+   ever scrolls"), Settings scrolls vertically - with this many sections it
+   no longer fits one 960x480 screen, and unlike a layout bug, scrolling on
+   a Settings page under touch is completely normal UX (see setupThemePicker()
+   and friends in script.js; [data-theme] blocks near the end of this file
+   for the theme swapping itself). */
 
 .page-settings {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: clamp(1rem, 2.2vh, 1.5rem);
+}
+
+/* Hides the scrollbar track/thumb (still fully scrollable by touch or
+   drag) - a visible scrollbar reads as desktop-web chrome, not a kiosk
+   display control. */
+.page-settings::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-section {
+  flex: none;
 }
 
 .settings-title {
-  flex: none;
   font-size: var(--fs-display);
   font-weight: 700;
   margin: 0 0 clamp(0.6rem, 1.6vh, 1rem);
 }
 
-/* Fixed 3 equal-height rows filling whatever's left below the title,
-   rather than each swatch's aspect-ratio dictating its own height - on
-   this wide-short screen, width-driven aspect-ratio boxes make 3 rows
-   taller than the page, clipping the bottom row (see .theme-swatch-preview
-   below, which fills its row instead of setting its own height). */
+/* Fixed height (rather than flex:1 filling whatever's left, back when this
+   was the only section on the page) - with several sibling sections now
+   sharing the scrolling column, the grid should size to its own content,
+   not compete for remaining space. 3 equal-height rows within that fixed
+   height, same reasoning as before: width-driven aspect-ratio boxes would
+   make 3 rows taller than intended on this wide-short screen (see
+   .theme-swatch-preview below, which fills its row instead of setting its
+   own height). */
 .theme-grid {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  height: clamp(10rem, 30vh, 14rem);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: clamp(0.5rem, 1.4vh, 0.85rem) clamp(0.6rem, 1.6vw, 1rem);
+}
+
+/* ---- Dashboard Layout settings ----------------------------------------------
+   The dashboard-side equivalent of the phone app's CustomizeLayoutScreen -
+   visibility/size/order for the Overview page's 6 card-grid tiles (see
+   TILE_DOM_ID/DEFAULT_TILE_LAYOUT earlier in this file, and
+   applyTileLayout() which actually renders whatever order/size this
+   produces). Up/down buttons rather than drag-and-drop reordering -
+   deliberately, matching the "avoid cutting-edge WebView features" lesson
+   already learned the hard way with mDNS/:has() on this same kiosk
+   WebView; a plain button tap is unambiguous where a drag gesture risks
+   conflicting with the pager's own horizontal swipe. */
+
+.settings-layout-list {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.settings-layout-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 0.5em 0.9em;
+}
+
+.settings-layout-row .settings-app-label {
+  flex: 1;
+}
+
+.settings-size-segmented {
+  flex: none;
+  display: flex;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-md);
+  padding: 0.2em;
+}
+
+.settings-size-btn {
+  flex: none;
+  width: 1.8em;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-md) - 0.15em);
+  padding: 0.3em 0;
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.settings-size-btn.active {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.settings-reorder-btn {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  padding: 0.2em 0.3em;
+  cursor: pointer;
+}
+
+.settings-reorder-btn:disabled {
+  color: var(--text-tertiary);
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---- Wallpaper settings -----------------------------------------------------
+   Manages the same photo library Ambient Mode already loads (see
+   ensureAmbientPhotosLoaded()/ambientPhotoIds in script.js) - no separate
+   fetch, this is genuinely the same data. Rotate/Single/Schedule mirrors
+   Aurora's WallpaperMode enum exactly (see applyWallpaperMode(), already
+   reading these same three modes off every /dashboard poll - this section
+   is purely the write side that was missing). */
+
+.settings-segmented {
+  flex: none;
+  display: flex;
+  gap: 0.4em;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 0.35em;
+  margin-bottom: 0.6em;
+}
+
+.settings-segment {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.5em 0.4em;
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.settings-segment.active {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.settings-photo-grid {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5em;
+  max-height: 22vh;
+  overflow-y: auto;
+  margin-bottom: 0.6em;
+}
+
+.settings-photo-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-photo-thumb {
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  background-color: var(--surface);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color var(--transition-fast);
+}
+
+.settings-photo-thumb.active {
+  border-color: var(--accent);
+}
+
+.settings-photo-empty {
+  grid-column: 1 / -1;
+  font-size: var(--fs-body);
+  color: var(--text-tertiary);
+  padding: 0.6em 0.2em;
+}
+
+.settings-schedule-add-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.5em;
+}
+
+.settings-schedule-add-row .settings-text-input {
+  flex: none;
+  width: 7em;
+  text-align: left;
+}
+
+.settings-add-btn {
+  flex: none;
+  background: var(--accent);
+  color: var(--surface);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.5em 1.1em;
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-schedule-list {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  max-height: 20vh;
+  overflow-y: auto;
+}
+
+.settings-schedule-list::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-schedule-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 0.5em 1em;
+}
+
+.settings-schedule-row .settings-photo-thumb {
+  flex: none;
+  width: 2em;
+  height: 2em;
+  cursor: default;
+}
+
+.settings-schedule-time {
+  flex: 1;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-schedule-remove {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2em 0.4em;
+}
+
+/* ---- Profile / Home Network settings --------------------------------------
+   The dashboard's first text inputs - everything before this was toggles,
+   sliders, and swatches. Same row shape as .dim-offset-row (label + one
+   control on a surface pill), styled to look native to the dark theme
+   rather than a default browser text field. See setupProfileSettings()/
+   setupHomeNetworkSettings() in script.js - both commit on blur, not per
+   keystroke, so a mid-typing partial value never gets POSTed. */
+
+.settings-text-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 0.7em 1em;
+}
+
+.settings-text-label {
+  flex: none;
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+}
+
+.settings-text-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-elevated);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0.5em 0.8em;
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  text-align: right;
+  transition: border-color var(--transition-fast);
+}
+
+.settings-text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-text-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.settings-text-hint {
+  flex: none;
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+  margin-top: 0.4em;
+}
+
+.settings-select {
+  flex: none;
+  background: var(--surface-elevated);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0.5em 0.8em;
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---- Notifications settings ------------------------------------------------
+   The dashboard-side equivalent of the phone app's NotificationAppsCard -
+   every app that's ever posted a notification, with a switch for whether
+   it's allowed to show on the dashboard. Lazy-loaded only when this page
+   is actually scrolled to (see ensureNotificationAppsLoaded() in script.js)
+   since the full app list only matters here, not every 30s poll. */
+
+.settings-app-list {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.settings-app-list::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-app-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 0.55em 1em;
+}
+
+.settings-app-icon {
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.settings-app-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-app-empty {
+  flex: none;
+  font-size: var(--fs-body);
+  color: var(--text-tertiary);
+  padding: 0.6em 0.2em;
+}
+
+/* A generic on/off pill switch - the first one this dashboard has needed
+   (everything else so far was an icon button or a slider). "Checked" here
+   always means "showing on the dashboard", the inverse of the blocklist's
+   own `blocked` flag, since that reads more naturally as a control. */
+.settings-switch {
+  flex: none;
+  position: relative;
+  width: 2.4em;
+  height: 1.4em;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.settings-switch::after {
+  content: "";
+  position: absolute;
+  top: 0.15em;
+  left: 0.15em;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.settings-switch[aria-checked="true"] {
+  background: var(--accent);
+}
+
+.settings-switch[aria-checked="true"]::after {
+  transform: translateX(1em);
+  background: var(--surface);
 }
 
 /* ---- Display settings ------------------------------------------------------

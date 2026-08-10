@@ -526,6 +526,14 @@ let latestSunrise = null; // "HH:mm", set by renderWeather()
 let latestSunset = null;
 let isNightMode = null; // null = not yet determined
 
+// Manual nudge on top of the sunrise/sunset schedule (see the Settings
+// page's Display section) - shifts both edges of the dim window by the
+// same amount, since "darker earlier tonight" naturally also means
+// "stay dark later in the morning" for a bedside display, not two
+// independently-tuned thresholds.
+const DIM_OFFSET_KEY = "aurora-dashboard:dim-offset-minutes";
+let dimOffsetMinutes = parseInt(localStorage.getItem(DIM_OFFSET_KEY), 10) || 0;
+
 /**
  * Dims the whole display at night for bedside comfort, brightens it back
  * for the morning - prefers actual sunrise/sunset (accounts for season and
@@ -535,8 +543,10 @@ let isNightMode = null; // null = not yet determined
  */
 function applyDayNightMode() {
   const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
-  const sunriseMinutes = latestSunrise ? minutesFromHHMM(latestSunrise) : NIGHT_MODE_FALLBACK_END_MIN;
-  const sunsetMinutes = latestSunset ? minutesFromHHMM(latestSunset) : NIGHT_MODE_FALLBACK_START_MIN;
+  const sunriseMinutes =
+    (latestSunrise ? minutesFromHHMM(latestSunrise) : NIGHT_MODE_FALLBACK_END_MIN) + dimOffsetMinutes;
+  const sunsetMinutes =
+    (latestSunset ? minutesFromHHMM(latestSunset) : NIGHT_MODE_FALLBACK_START_MIN) + dimOffsetMinutes;
 
   const night = nowMinutes >= sunsetMinutes || nowMinutes < sunriseMinutes;
   if (night === isNightMode) return;
@@ -547,6 +557,32 @@ function applyDayNightMode() {
   if (window.fully && typeof window.fully.setScreenBrightness === "function") {
     window.fully.setScreenBrightness(night ? NIGHT_SCREEN_BRIGHTNESS : DAY_SCREEN_BRIGHTNESS);
   }
+}
+
+function formatDimOffsetLabel(minutes) {
+  if (minutes === 0) return "On time";
+  return minutes < 0 ? `${-minutes}m earlier` : `${minutes}m later`;
+}
+
+function setupDimOffsetSlider() {
+  const slider = byId("dim-offset-slider");
+  const label = byId("dim-offset-value");
+  if (!slider || !label) return;
+
+  slider.value = String(dimOffsetMinutes);
+  label.textContent = formatDimOffsetLabel(dimOffsetMinutes);
+
+  slider.addEventListener("input", () => {
+    dimOffsetMinutes = parseInt(slider.value, 10) || 0;
+    label.textContent = formatDimOffsetLabel(dimOffsetMinutes);
+    localStorage.setItem(DIM_OFFSET_KEY, String(dimOffsetMinutes));
+    // applyDayNightMode() normally only acts on an actual night/day
+    // transition, not every call - forcing isNightMode back to
+    // "undetermined" makes a slider drag take visible effect immediately
+    // instead of waiting for the next real sunrise/sunset crossing.
+    isNightMode = null;
+    applyDayNightMode();
+  });
 }
 
 function clockTimeParts(now, timeZone) {
@@ -710,6 +746,30 @@ function renderAirQuality(weather) {
   setText("weather-aqi-text-lg", `AQI ${aqi} - ${aqiCategory(aqi)}`);
 }
 
+/** Daily Info page only - a single compact line rather than one row per
+ *  metric (see .weather-details-lg's comment), and each piece is
+ *  independently optional, same "degrade gracefully" reasoning as
+ *  everything else on WeatherSnapshot. */
+function renderWeatherDetails(weather) {
+  const el = byId("weather-details-lg");
+  if (!el) return;
+
+  const parts = [];
+  if (weather?.feelsLike != null && Math.abs(weather.feelsLike - Math.round(weather.temperature)) >= 3) {
+    parts.push(`Feels ${weather.feelsLike}°`);
+  }
+  if (weather?.windSpeedMph != null) parts.push(`Wind ${weather.windSpeedMph} mph`);
+  if (weather?.humidityPercent != null) parts.push(`Humidity ${weather.humidityPercent}%`);
+  if (weather?.uvIndex != null) parts.push(`UV ${weather.uvIndex}`);
+
+  if (parts.length === 0) {
+    el.classList.add("hidden");
+    return;
+  }
+  el.classList.remove("hidden");
+  el.textContent = parts.join(" · ");
+}
+
 /** Today plus the next few days (see WeatherConfig.FORECAST_DAYS on the
  *  Aurora side) - Daily Info page only, same reasoning as the radar panel
  *  for why it doesn't also try to fit in the compact Overview card. */
@@ -822,6 +882,13 @@ function renderSevereAlert(alert) {
     setText(ids.event, alert.event);
     setText(ids.headline, alert.headline);
   });
+
+  // The Overview page's clock/briefing/status-line share a fixed-height
+  // row with this banner (see .page-overview's grid comment in style.css)
+  // and none of them are otherwise height-aware - without this, an active
+  // banner pushes the status line past the page's own overflow:hidden
+  // edge and it just disappears. See body.has-severe-alert in style.css.
+  document.body.classList.toggle("has-severe-alert", Boolean(alert));
 }
 
 function renderPhone(battery, charging, chargingEtaMinutes) {
@@ -1216,6 +1283,7 @@ function renderDashboard(data) {
   renderWeather(data.weather);
   renderRadar(data.weather);
   renderAirQuality(data.weather);
+  renderWeatherDetails(data.weather);
   renderDailyForecast(data.weather);
   renderAmbientWeather(data.weather);
   renderPhone(data.battery, data.charging, data.chargingEtaMinutes);
@@ -1326,6 +1394,11 @@ function stopSourceNode() {
  * attempt, or any later touch - makes the already-queued source audible
  * immediately, with no second startLocalPlayback() call needed.
  */
+// A gentle rise instead of the sound snapping straight to full volume the
+// instant playback starts - purely cosmetic to the ear, but reads as a
+// lot less jarring for something meant to help you fall asleep.
+const SOUND_FADE_IN_SECONDS = 2.5;
+
 async function startLocalPlayback(soundId, offsetSeconds = 0) {
   const ctx = ensureAudioContext();
   if (ctx.state === "suspended") {
@@ -1342,6 +1415,15 @@ async function startLocalPlayback(soundId, offsetSeconds = 0) {
 
   const startOffset = buffer.duration > 0 ? offsetSeconds % buffer.duration : 0;
   source.start(0, startOffset);
+
+  // Whatever setLocalVolume() last set is the real target - ramp up to
+  // it rather than starting there outright. Cancels any in-flight ramp
+  // first so rapid stop/start doesn't leave two competing schedules.
+  const targetGain = gainNode.gain.value;
+  const now = ctx.currentTime;
+  gainNode.gain.cancelScheduledValues(now);
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(targetGain, now + SOUND_FADE_IN_SECONDS);
 
   currentSource = source;
   currentSoundId = soundId;
@@ -1772,13 +1854,20 @@ let wakeAlarmGainNode = null;
 let wakeAlarmSource = null;
 let isAlarmRinging = false;
 
+// Starts quiet rather than snapping to full volume - a real bedside alarm
+// clock rings, it doesn't blast - and ramps up over this long, so even a
+// deep sleeper who misses the first few seconds still gets full volume
+// well before it'd be worth ignoring the whole point of an alarm.
+const WAKE_ALARM_START_GAIN = 0.08;
+const WAKE_ALARM_RAMP_SECONDS = 45;
+
 function ensureWakeAlarmAudioContext() {
   if (!wakeAlarmAudioContext) {
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     wakeAlarmAudioContext = new AudioContextCtor();
     wakeAlarmGainNode = wakeAlarmAudioContext.createGain();
     wakeAlarmGainNode.connect(wakeAlarmAudioContext.destination);
-    wakeAlarmGainNode.gain.value = 1;
+    wakeAlarmGainNode.gain.value = WAKE_ALARM_START_GAIN;
   }
   return wakeAlarmAudioContext;
 }
@@ -1802,6 +1891,11 @@ async function startWakeAlarmSound(soundId) {
   source.connect(wakeAlarmGainNode);
   source.start(0);
   wakeAlarmSource = source;
+
+  const now = ctx.currentTime;
+  wakeAlarmGainNode.gain.cancelScheduledValues(now);
+  wakeAlarmGainNode.gain.setValueAtTime(WAKE_ALARM_START_GAIN, now);
+  wakeAlarmGainNode.gain.linearRampToValueAtTime(1, now + WAKE_ALARM_RAMP_SECONDS);
 }
 
 function stopWakeAlarmSound() {
@@ -1873,13 +1967,24 @@ function reconcileWakeAlarm(ringingState) {
   }
 }
 
+const SNOOZE_DURATION_KEY = "aurora-dashboard:snooze-duration";
+
 function setupWakeAlarmRingingControls() {
   setIcon("alarm-ringing-icon", "alarm");
+
+  const durationPicker = byId("alarm-snooze-duration");
+  const savedDuration = localStorage.getItem(SNOOZE_DURATION_KEY);
+  if (durationPicker && savedDuration) durationPicker.value = savedDuration;
+  durationPicker?.addEventListener("change", () => {
+    localStorage.setItem(SNOOZE_DURATION_KEY, durationPicker.value);
+  });
+
   byId("alarm-dismiss-btn")?.addEventListener("click", () => {
     postSoundAction("/wakealarms/dismiss").then(poll);
   });
   byId("alarm-snooze-btn")?.addEventListener("click", () => {
-    postSoundAction("/wakealarms/snooze").then(poll);
+    const minutes = durationPicker?.value || "9";
+    postSoundAction(`/wakealarms/snooze?minutes=${encodeURIComponent(minutes)}`).then(poll);
   });
 }
 
@@ -1969,6 +2074,28 @@ async function fetchDashboard() {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+const MANUAL_REFRESH_COOLDOWN_MS = 3000;
+let manualRefreshCooldownUntil = 0;
+
+/** Tapping the status line forces an immediate poll instead of waiting
+ *  for the next 30s tick - for "did that notification actually come
+ *  through yet" moments. A short cooldown (rather than disabling the
+ *  element) keeps repeated taps from hammering Aurora while still never
+ *  leaving the control in a visibly "broken" disabled state. */
+function setupManualRefresh() {
+  byId("status-line")?.addEventListener("click", () => {
+    if (Date.now() < manualRefreshCooldownUntil) return;
+    manualRefreshCooldownUntil = Date.now() + MANUAL_REFRESH_COOLDOWN_MS;
+
+    const el = byId("status-line");
+    el?.classList.remove("refreshing");
+    void el?.offsetWidth; // force reflow so the animation restarts cleanly
+    el?.classList.add("refreshing");
+
+    poll();
+  });
 }
 
 async function poll() {
@@ -2430,6 +2557,8 @@ function init() {
   setupDndToggle();
   setupPrivacyToggle();
   setupRadar();
+  setupManualRefresh();
+  setupDimOffsetSlider();
   ensureSoundLibraryLoaded();
   // No explicit startWallpaperRotation() call here - applyWallpaperMode()
   // (called from renderDashboard, both for the cached render just above

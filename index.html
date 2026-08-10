@@ -393,51 +393,111 @@
          a handful of signature rules, nothing here or in script.js
          branches per theme. -->
     <section class="page page-settings" id="page-settings" aria-label="Settings">
-      <h2 class="settings-title">Theme</h2>
-      <div class="theme-grid" id="theme-grid">
-        <button class="theme-swatch" data-theme-value="default" aria-label="Default theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #9aa5b1)"></span>
-          <span class="theme-swatch-label">Default</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="materialyou" aria-label="Material You theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #1c1b1f, #d0bcff)"></span>
-          <span class="theme-swatch-label">Material You</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="nothingos" aria-label="Nothing OS theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #d1223b)"></span>
-          <span class="theme-swatch-label">Nothing OS</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="pixel" aria-label="Pixel theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #131314, #8ab4f8)"></span>
-          <span class="theme-swatch-label">Pixel</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="retrocrt" aria-label="Retro CRT theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #020a02, #33ff66)"></span>
-          <span class="theme-swatch-label">Retro CRT</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="oledminimal" aria-label="OLED Minimal theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #e0e0e0)"></span>
-          <span class="theme-swatch-label">OLED Minimal</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="catppuccin" aria-label="Catppuccin theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #1e1e2e, #cba6f7)"></span>
-          <span class="theme-swatch-label">Catppuccin</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="nord" aria-label="Nord theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #2e3440, #88c0d0)"></span>
-          <span class="theme-swatch-label">Nord</span>
-        </button>
-        <button class="theme-swatch" data-theme-value="gruvbox" aria-label="Gruvbox theme">
-          <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #282828, #fe8019)"></span>
-          <span class="theme-swatch-label">Gruvbox</span>
-        </button>
+      <div class="settings-section">
+        <h2 class="settings-title">Profile</h2>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Name</span>
+          <input type="text" id="settings-name-input" class="settings-text-input" placeholder="Your name" autocomplete="off" aria-label="Your name" />
+        </div>
       </div>
 
-      <h2 class="settings-title">Display</h2>
-      <div class="dim-offset-row">
-        <span class="dim-offset-label">Dim schedule</span>
-        <input type="range" id="dim-offset-slider" class="dim-offset-slider" min="-120" max="120" step="15" value="0" aria-label="Shift auto-dim schedule earlier or later" />
-        <span class="dim-offset-value" id="dim-offset-value">On time</span>
+      <div class="settings-section">
+        <h2 class="settings-title">Notifications</h2>
+        <div class="settings-app-list" id="settings-app-list"></div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Wallpaper</h2>
+        <div class="settings-segmented" id="wallpaper-mode-segmented" role="radiogroup" aria-label="Wallpaper mode">
+          <button class="settings-segment" type="button" data-mode="rotating">Rotate</button>
+          <button class="settings-segment" type="button" data-mode="single">Single</button>
+          <button class="settings-segment" type="button" data-mode="scheduled">Schedule</button>
+        </div>
+        <div class="settings-photo-grid" id="wallpaper-photo-grid"></div>
+        <div class="settings-schedule-add-row hidden" id="wallpaper-schedule-add-row">
+          <input type="time" id="wallpaper-schedule-time" class="settings-text-input" aria-label="Time for scheduled photo" />
+          <button class="settings-add-btn" type="button" id="wallpaper-schedule-add-btn">Add</button>
+        </div>
+        <div class="settings-schedule-list hidden" id="wallpaper-schedule-list"></div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Dashboard Layout</h2>
+        <div class="settings-layout-list" id="settings-layout-list"></div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Display</h2>
+        <div class="dim-offset-row">
+          <span class="dim-offset-label">Dim schedule</span>
+          <input type="range" id="dim-offset-slider" class="dim-offset-slider" min="-120" max="120" step="15" value="0" aria-label="Shift auto-dim schedule earlier or later" />
+          <span class="dim-offset-value" id="dim-offset-value">On time</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Ambient Mode</h2>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Idle timeout</span>
+          <select id="settings-ambient-timeout" class="settings-select" aria-label="Ambient Mode idle timeout">
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">60 minutes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Home Network</h2>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Subnet</span>
+          <input type="text" id="settings-network-input" class="settings-text-input" placeholder="192.168.1" inputmode="decimal" autocomplete="off" aria-label="Home network subnet prefix" />
+        </div>
+        <div class="settings-text-hint">Aurora only runs its dashboard server on this network, e.g. 192.168.1</div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Theme</h2>
+        <div class="theme-grid" id="theme-grid">
+          <button class="theme-swatch" data-theme-value="default" aria-label="Default theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #9aa5b1)"></span>
+            <span class="theme-swatch-label">Default</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="materialyou" aria-label="Material You theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #1c1b1f, #d0bcff)"></span>
+            <span class="theme-swatch-label">Material You</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="nothingos" aria-label="Nothing OS theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #d1223b)"></span>
+            <span class="theme-swatch-label">Nothing OS</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="pixel" aria-label="Pixel theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #131314, #8ab4f8)"></span>
+            <span class="theme-swatch-label">Pixel</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="retrocrt" aria-label="Retro CRT theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #020a02, #33ff66)"></span>
+            <span class="theme-swatch-label">Retro CRT</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="oledminimal" aria-label="OLED Minimal theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #000000, #e0e0e0)"></span>
+            <span class="theme-swatch-label">OLED Minimal</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="catppuccin" aria-label="Catppuccin theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #1e1e2e, #cba6f7)"></span>
+            <span class="theme-swatch-label">Catppuccin</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="nord" aria-label="Nord theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #2e3440, #88c0d0)"></span>
+            <span class="theme-swatch-label">Nord</span>
+          </button>
+          <button class="theme-swatch" data-theme-value="gruvbox" aria-label="Gruvbox theme">
+            <span class="theme-swatch-preview" style="background: linear-gradient(135deg, #282828, #fe8019)"></span>
+            <span class="theme-swatch-label">Gruvbox</span>
+          </button>
+        </div>
       </div>
     </section>
   </div>

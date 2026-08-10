@@ -147,6 +147,8 @@ const ICONS = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 5V4l-5 5H4z"/><path d="M17 8a5 5 0 0 1 0 8M19.5 5.5a9 9 0 0 1 0 13"/></svg>',
   volume:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 5V4l-5 5H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg>',
+  volumeMuted:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 5V4l-5 5H4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>',
@@ -162,6 +164,7 @@ const ICONS = {
   alertTriangle:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01" stroke-width="2.4"/></svg>',
   leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-5 4.5-9 11-10 1 6.5-3 11-11 11"/><path d="M4 20c3-2 5.5-4.5 7-8"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 0-5 5c0 3.5 5 11 5 11s5-7.5 5-11a5 5 0 0 0-5-5z"/><circle cx="12" cy="7" r="2"/></svg>',
 };
 
 // ---------------------------------------------------------------------------
@@ -272,12 +275,18 @@ function escapeHtml(value) {
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-/** Aurora returns 24-hour "HH:mm" strings; the display uses 12-hour + AM/PM. */
-function formatTime12h(hhmm) {
+/** Aurora returns 24-hour "HH:mm" strings; the display uses whichever
+ *  format the Settings page's clock-format toggle currently picks (see
+ *  clock24h) - kept in sync with the big clock rather than a separate
+ *  per-feature choice, so sunrise/sunset/alarm times never disagree with
+ *  the clock about which format is "on" right now. */
+function formatTimeOfDay(hhmm) {
   if (!hhmm) return null;
   const [hourStr, minuteStr] = hhmm.split(":");
   let hour = parseInt(hourStr, 10);
   if (Number.isNaN(hour)) return hhmm;
+
+  if (clock24h) return `${hourStr.padStart(2, "0")}:${minuteStr}`;
 
   const period = hour >= 12 ? "PM" : "AM";
   hour = hour % 12;
@@ -534,6 +543,24 @@ let isNightMode = null; // null = not yet determined
 const DIM_OFFSET_KEY = "aurora-dashboard:dim-offset-minutes";
 let dimOffsetMinutes = parseInt(localStorage.getItem(DIM_OFFSET_KEY), 10) || 0;
 
+// Aurora always reports temperature in °F (see WeatherSnapshot on that
+// side) - this is purely a display-time conversion, nothing round-trips to
+// Aurora in Celsius. Kept as a bare "°" everywhere except the Morning
+// Briefing sentence (the one spot that already spelled out a literal "F"),
+// matching the dashboard's existing minimalist temperature style.
+const TEMP_UNIT_KEY = "aurora-dashboard:temp-unit";
+let tempUnit = localStorage.getItem(TEMP_UNIT_KEY) === "C" ? "C" : "F";
+
+function displayTemp(fahrenheit) {
+  if (fahrenheit == null) return null;
+  return tempUnit === "C" ? Math.round(((fahrenheit - 32) * 5) / 9) : Math.round(fahrenheit);
+}
+
+// 24h format skips the AM/PM suffix entirely rather than just switching
+// hour12 - see clockTimeParts()/updateClock().
+const CLOCK_FORMAT_KEY = "aurora-dashboard:clock-format";
+let clock24h = localStorage.getItem(CLOCK_FORMAT_KEY) === "24h";
+
 /**
  * Dims the whole display at night for bedside comfort, brightens it back
  * for the morning - prefers actual sunrise/sunset (accounts for season and
@@ -585,6 +612,80 @@ function setupDimOffsetSlider() {
   });
 }
 
+// How dark "dimmed" actually gets, as a percentage - separate from
+// dimOffsetMinutes above (which controls *when* dimming starts/ends, not
+// how dark it goes). 45% matches the value this was hardcoded to before
+// this setting existed, so anyone who's never touched the slider sees no
+// change (see body.dimmed's var() fallback in style.css).
+const DIM_INTENSITY_KEY = "aurora-dashboard:dim-intensity-percent";
+let dimIntensityPercent = parseInt(localStorage.getItem(DIM_INTENSITY_KEY), 10) || 45;
+
+function applyDimIntensity() {
+  document.documentElement.style.setProperty("--dim-intensity", String(dimIntensityPercent / 100));
+}
+
+function setupDimIntensitySlider() {
+  const slider = byId("dim-intensity-slider");
+  const label = byId("dim-intensity-value");
+  if (!slider || !label) return;
+
+  slider.value = String(dimIntensityPercent);
+  label.textContent = `${dimIntensityPercent}%`;
+  applyDimIntensity();
+
+  slider.addEventListener("input", () => {
+    dimIntensityPercent = parseInt(slider.value, 10) || 45;
+    label.textContent = `${dimIntensityPercent}%`;
+    localStorage.setItem(DIM_INTENSITY_KEY, String(dimIntensityPercent));
+    applyDimIntensity();
+  });
+}
+
+function setupClockFormatSetting() {
+  const segmented = byId("clock-format-segmented");
+  if (!segmented) return;
+
+  const sync = () => {
+    segmented.querySelectorAll(".settings-segment").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.format === (clock24h ? "24h" : "12h"));
+    });
+  };
+  sync();
+
+  segmented.addEventListener("click", (event) => {
+    const btn = event.target.closest(".settings-segment");
+    if (!btn) return;
+    clock24h = btn.dataset.format === "24h";
+    localStorage.setItem(CLOCK_FORMAT_KEY, clock24h ? "24h" : "12h");
+    sync();
+    updateClock();
+  });
+}
+
+function setupTempUnitSetting() {
+  const segmented = byId("temp-unit-segmented");
+  if (!segmented) return;
+
+  const sync = () => {
+    segmented.querySelectorAll(".settings-segment").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.unit === tempUnit);
+    });
+  };
+  sync();
+
+  segmented.addEventListener("click", (event) => {
+    const btn = event.target.closest(".settings-segment");
+    if (!btn) return;
+    tempUnit = btn.dataset.unit;
+    localStorage.setItem(TEMP_UNIT_KEY, tempUnit);
+    sync();
+    // Re-render from the last-known weather rather than waiting up to 30s
+    // for the next poll - same "instant feedback" reasoning as every other
+    // Settings control on this page.
+    if (lastWeatherData) renderWeather(lastWeatherData);
+  });
+}
+
 /** Populates the name field from /dashboard's userName on every poll -
  *  skipped while the field is focused so a live poll never overwrites
  *  what's mid-typing (same reasoning as every other "don't clobber active
@@ -606,6 +707,104 @@ function setupProfileSettings() {
   input.addEventListener("blur", () => {
     const value = input.value.trim();
     if (value) postAction(`/settings/name?value=${encodeURIComponent(value)}`);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Auto-enter Bedside Mode on a schedule - pure localStorage, checked on
+// every clock tick (see updateClock()) rather than a separate timer, since
+// the clock already ticks every second regardless. Fires at most once per
+// calendar day so the matching minute's ~60 ticks don't re-trigger it
+// repeatedly, and won't fire again the same night after a manual exit.
+// ---------------------------------------------------------------------------
+
+const AUTO_BEDSIDE_ENABLED_KEY = "aurora-dashboard:auto-bedside-enabled";
+const AUTO_BEDSIDE_TIME_KEY = "aurora-dashboard:auto-bedside-time";
+let autoBedsideEnabled = localStorage.getItem(AUTO_BEDSIDE_ENABLED_KEY) === "true";
+let autoBedsideTime = localStorage.getItem(AUTO_BEDSIDE_TIME_KEY) || "22:00";
+let autoBedsideLastFiredDateKey = null;
+
+function maybeAutoEnterBedside() {
+  if (!autoBedsideEnabled) return;
+  if (document.body.classList.contains("bedside-active")) return;
+  if (isAlarmRinging) return;
+
+  const timeZone = currentTimezone || undefined;
+  const nowMinutes = currentMinutesInTimezone(timeZone);
+  if (nowMinutes !== minutesFromHHMM(autoBedsideTime)) return;
+
+  const dateKey = new Date().toLocaleDateString("en-US", { timeZone });
+  if (autoBedsideLastFiredDateKey === dateKey) return;
+  autoBedsideLastFiredDateKey = dateKey;
+  enterBedsideMode();
+}
+
+function setupAutoBedsideSetting() {
+  const toggle = byId("auto-bedside-toggle");
+  const timeInput = byId("auto-bedside-time");
+  if (!toggle || !timeInput) return;
+
+  toggle.setAttribute("aria-checked", String(autoBedsideEnabled));
+  timeInput.value = autoBedsideTime;
+  timeInput.disabled = !autoBedsideEnabled;
+
+  toggle.addEventListener("click", () => {
+    autoBedsideEnabled = !autoBedsideEnabled;
+    toggle.setAttribute("aria-checked", String(autoBedsideEnabled));
+    timeInput.disabled = !autoBedsideEnabled;
+    localStorage.setItem(AUTO_BEDSIDE_ENABLED_KEY, String(autoBedsideEnabled));
+  });
+
+  timeInput.addEventListener("change", () => {
+    if (!timeInput.value) return;
+    autoBedsideTime = timeInput.value;
+    localStorage.setItem(AUTO_BEDSIDE_TIME_KEY, autoBedsideTime);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sticky note / reminder - a short dashboard-only note shown on the
+// Overview page until dismissed. Pure localStorage, no Aurora involved -
+// the text and its dismissed state are tracked separately so reopening
+// Settings still shows what was last typed even after dismissing the
+// banner, and typing a genuinely new note implicitly un-dismisses it.
+// ---------------------------------------------------------------------------
+
+const STICKY_NOTE_KEY = "aurora-dashboard:sticky-note";
+const STICKY_NOTE_DISMISSED_KEY = "aurora-dashboard:sticky-note-dismissed";
+let stickyNoteText = localStorage.getItem(STICKY_NOTE_KEY) || "";
+let stickyNoteDismissed = localStorage.getItem(STICKY_NOTE_DISMISSED_KEY) === "true";
+
+function renderStickyNote() {
+  const banner = byId("sticky-note-banner");
+  if (!banner) return;
+  const show = Boolean(stickyNoteText) && !stickyNoteDismissed;
+  banner.classList.toggle("hidden", !show);
+  if (show) setText("sticky-note-text", stickyNoteText);
+}
+
+function setupStickyNote() {
+  setIcon("sticky-note-icon", "pin");
+  renderStickyNote();
+
+  const input = byId("settings-note-input");
+  if (input) {
+    input.value = stickyNoteText;
+    input.addEventListener("blur", () => {
+      const value = input.value.trim();
+      if (value === stickyNoteText) return;
+      stickyNoteText = value;
+      stickyNoteDismissed = false;
+      localStorage.setItem(STICKY_NOTE_KEY, stickyNoteText);
+      localStorage.setItem(STICKY_NOTE_DISMISSED_KEY, "false");
+      renderStickyNote();
+    });
+  }
+
+  byId("sticky-note-dismiss")?.addEventListener("click", () => {
+    stickyNoteDismissed = true;
+    localStorage.setItem(STICKY_NOTE_DISMISSED_KEY, "true");
+    renderStickyNote();
   });
 }
 
@@ -650,12 +849,13 @@ function setupHomeNetworkSettings() {
 }
 
 function clockTimeParts(now, timeZone) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).formatToParts(now);
+  // hourCycle: "h23" (not just hour12: false) - some engines default
+  // hour12:false to hourCycle "h24" (1-24), which would show "24:15"
+  // instead of "00:15" right after midnight on a bedside clock.
+  const options = clock24h
+    ? { timeZone, hour: "numeric", minute: "2-digit", hourCycle: "h23" }
+    : { timeZone, hour: "numeric", minute: "2-digit", hour12: true };
+  const parts = new Intl.DateTimeFormat("en-US", options).formatToParts(now);
   const get = (type) => parts.find((p) => p.type === type)?.value ?? "";
   return { hour: get("hour"), minute: get("minute"), period: get("dayPeriod") };
 }
@@ -677,7 +877,7 @@ function updateClock() {
 
   const { hour, minute, period } = clockTimeParts(now, timeZone);
   const { weekday, month, day } = clockDateParts(now, timeZone);
-  const timeText = `${hour}:${minute} ${period}`;
+  const timeText = clock24h ? `${hour}:${minute}` : `${hour}:${minute} ${period}`;
   const monthdayText = `${month} ${day}`;
 
   // The clock appears four times - compact on the Morning Overview page,
@@ -698,6 +898,7 @@ function updateClock() {
 
   updateStatusLine();
   applyDayNightMode();
+  maybeAutoEnterBedside();
 }
 
 function startClock() {
@@ -706,11 +907,44 @@ function startClock() {
 }
 
 // ---------------------------------------------------------------------------
+// Moon phase - pure date math, no Aurora involvement (unlike sunrise/sunset,
+// which come from Open-Meteo since they depend on location; the lunar cycle
+// doesn't). Standard synodic-month approximation against a known new moon,
+// good to within about a day either side of an exact phase boundary - fine
+// for a glanceable bedside label, not an almanac.
+// ---------------------------------------------------------------------------
+
+const MOON_SYNODIC_MONTH_DAYS = 29.530588853;
+const MOON_KNOWN_NEW_MOON_UTC = Date.UTC(2000, 0, 6, 18, 14, 0);
+const MOON_PHASE_EMOJI = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
+const MOON_PHASE_NAMES = [
+  "New Moon",
+  "Waxing Crescent",
+  "First Quarter",
+  "Waxing Gibbous",
+  "Full Moon",
+  "Waning Gibbous",
+  "Last Quarter",
+  "Waning Crescent",
+];
+
+function moonPhaseLabel(date) {
+  const daysSinceNew = (date.getTime() - MOON_KNOWN_NEW_MOON_UTC) / 86400000;
+  let age = daysSinceNew % MOON_SYNODIC_MONTH_DAYS;
+  if (age < 0) age += MOON_SYNODIC_MONTH_DAYS;
+  const index = Math.round((age / MOON_SYNODIC_MONTH_DAYS) * 8) % 8;
+  return `${MOON_PHASE_EMOJI[index]} ${MOON_PHASE_NAMES[index]}`;
+}
+
+// ---------------------------------------------------------------------------
 // Rendering - one function per card, each safely no-ops on missing/null
 // data, plus the Morning Briefing.
 // ---------------------------------------------------------------------------
 
+let lastWeatherData = null;
+
 function renderWeather(weather) {
+  lastWeatherData = weather;
   if (!weather) {
     setIcon("weather-icon", "cloud");
     setText("weather-temp", "--°");
@@ -731,9 +965,9 @@ function renderWeather(weather) {
 
   const nightOverride = isPastNightWeatherThreshold(currentTimezone || undefined);
   const icon = nightOverride ? "moon" : WEATHER_ICON_BY_CONDITION[weather.condition] || "cloud";
-  const temp = Math.round(weather.temperature);
-  const high = Math.round(weather.high);
-  const low = Math.round(weather.low);
+  const temp = displayTemp(weather.temperature);
+  const high = displayTemp(weather.high);
+  const low = displayTemp(weather.low);
 
   // Weather appears twice - the compact Overview card and the big hero
   // tile on the Daily Info page - so both ids get updated together.
@@ -748,13 +982,13 @@ function renderWeather(weather) {
   setText("weather-condition-lg", weather.condition);
   setRollingNumber("weather-high-lg", high, "°");
   setRollingNumber("weather-low-lg", low, "°");
-  setText("weather-sunrise-lg", weather.sunrise ? formatTime12h(weather.sunrise) : "--:--");
-  setText("weather-sunset-lg", weather.sunset ? formatTime12h(weather.sunset) : "--:--");
+  setText("weather-sunrise-lg", weather.sunrise ? formatTimeOfDay(weather.sunrise) : "--:--");
+  setText("weather-sunset-lg", weather.sunset ? formatTimeOfDay(weather.sunset) : "--:--");
 
   // Same "bring an umbrella" signal the Morning Briefing already surfaces
   // (see renderMorningBriefing) - shown here too since the Weather card is
   // where you'd actually look for it once the briefing's scrolled by.
-  const rainText = weather.rainExpectedAt ? `Rain expected ${formatTime12h(weather.rainExpectedAt)}` : "";
+  const rainText = weather.rainExpectedAt ? `Rain expected ${formatTimeOfDay(weather.rainExpectedAt)}` : "";
   setIcon("weather-rain-icon", "rain");
   setText("weather-rain-text", rainText);
   byId("weather-rain")?.classList.toggle("hidden", !rainText);
@@ -820,11 +1054,17 @@ function renderWeatherDetails(weather) {
 
   const parts = [];
   if (weather?.feelsLike != null && Math.abs(weather.feelsLike - Math.round(weather.temperature)) >= 3) {
-    parts.push(`Feels ${weather.feelsLike}°`);
+    parts.push(`Feels ${displayTemp(weather.feelsLike)}°`);
   }
   if (weather?.windSpeedMph != null) parts.push(`Wind ${weather.windSpeedMph} mph`);
   if (weather?.humidityPercent != null) parts.push(`Humidity ${weather.humidityPercent}%`);
   if (weather?.uvIndex != null) parts.push(`UV ${weather.uvIndex}`);
+  // Only worth a mention above a "might actually matter" threshold - most
+  // days sit in the 0-20% range, and showing that every time would just be
+  // noise (same reasoning as RAIN_PROBABILITY_THRESHOLD's own umbrella nudge).
+  if (weather?.precipitationProbability != null && weather.precipitationProbability >= 20) {
+    parts.push(`Rain ${weather.precipitationProbability}%`);
+  }
 
   if (parts.length === 0) {
     el.classList.add("hidden");
@@ -855,7 +1095,7 @@ function renderDailyForecast(weather) {
       return `<div class="forecast-day">
           <div class="forecast-day-label">${escapeHtml(label)}</div>
           <span class="icon-slot" data-icon="${icon}">${ICONS[icon] || ""}</span>
-          <div class="forecast-day-temps"><b>${Math.round(day.high)}°</b><span>${Math.round(day.low)}°</span></div>
+          <div class="forecast-day-temps"><b>${displayTemp(day.high)}°</b><span>${displayTemp(day.low)}°</span></div>
         </div>`;
     })
     .join("");
@@ -913,10 +1153,20 @@ function setupRadar() {
 /** Ambient Mode's "tiny weather" line - just a plain text summary, not
  *  the full icon/high/low card treatment the other pages use. */
 function renderAmbientWeather(weather) {
-  setText("ambient-weather", weather ? `${Math.round(weather.temperature)}° ${weather.condition}` : "");
+  setText("ambient-weather", weather ? `${displayTemp(weather.temperature)}° ${weather.condition}` : "");
+  setText("ambient-moon", moonPhaseLabel(new Date()));
 }
 
+// Cached for maybeShowBedsideBatteryNudge() below, which needs the latest
+// reading at the moment Bedside Mode is entered - a one-off check outside
+// the regular render cycle, not something renderDashboard() itself drives.
+let latestBattery = null;
+let latestCharging = false;
+
 function renderBatteryWarning(battery, charging) {
+  latestBattery = battery;
+  latestCharging = charging;
+
   const banner = byId("battery-warning");
   if (!banner) return;
 
@@ -1170,7 +1420,7 @@ function renderSchedule(events, showsTomorrow) {
       ? '<li class="schedule-empty">No events</li>'
       : events
           .map((event) => {
-            const time = escapeHtml(event.allDay ? "All day" : formatTime12h(event.start));
+            const time = escapeHtml(event.allDay ? "All day" : formatTimeOfDay(event.start));
             const title = escapeHtml(event.title || "Untitled");
             return `<li class="schedule-item">
         <span class="schedule-time">${time}</span>
@@ -1199,12 +1449,12 @@ function renderBedsideTomorrow(data) {
     return;
   }
   const dayWord = data.calendarShowsTomorrow ? "Tomorrow" : "Today";
-  const time = firstEvent.allDay ? "all day" : formatTime12h(firstEvent.start);
+  const time = firstEvent.allDay ? "all day" : formatTimeOfDay(firstEvent.start);
   el.textContent = `${dayWord}: ${firstEvent.title || "Untitled"} at ${time}`;
 }
 
 function renderAlarm(nextAlarm) {
-  const text = nextAlarm ? formatTime12h(nextAlarm.time) : "No alarm";
+  const text = nextAlarm ? formatTimeOfDay(nextAlarm.time) : "No alarm";
 
   // Alarm appears three times - the compact Overview card, the inline
   // line under the clock on the Clock/Sound page, and again in Bedside
@@ -1267,11 +1517,12 @@ function renderSoundMachine(state) {
     setIcon(`sound-play-pause-icon${suffix}`, playPauseIcon);
     byId(`sound-play-pause${suffix}`)?.setAttribute("aria-label", playPauseLabel);
     setIcon(`sound-stop-icon${suffix}`, "stop");
-    setIcon(`volume-icon${suffix}`, "volume");
+    setIcon(`volume-icon${suffix}`, state.volume === 0 ? "volumeMuted" : "volume");
     syncRangeInputIfIdle(`sound-volume${suffix}`, state.volume);
     setText(`sound-volume-label${suffix}`, `${state.volume}%`);
     syncPickerIfIdle(`sound-picker${suffix}`, state.sound);
   });
+  renderRecentSounds();
 }
 
 /** null if [minutesUntil] is negative or unknown - "in 45 min" / "in 3
@@ -1313,9 +1564,9 @@ function renderMorningBriefing(data) {
   const weather = data.weather;
   let weatherLine = "Weather data isn't available yet.";
   if (weather) {
-    weatherLine = `${Math.round(weather.temperature)}°F and ${weather.condition.toLowerCase()}, reaching ${Math.round(weather.high)}° today.`;
+    weatherLine = `${displayTemp(weather.temperature)}°${tempUnit} and ${weather.condition.toLowerCase()}, reaching ${displayTemp(weather.high)}° today.`;
     if (weather.rainExpectedAt) {
-      weatherLine += ` Bring an umbrella - rain expected around ${formatTime12h(weather.rainExpectedAt)}.`;
+      weatherLine += ` Bring an umbrella - rain expected around ${formatTimeOfDay(weather.rainExpectedAt)}.`;
     }
   }
   setText("briefing-weather", weatherLine);
@@ -1330,7 +1581,7 @@ function renderMorningBriefing(data) {
     const eventMinutes = minutesFromHHMM(firstEvent.start);
     const minutesUntil = data.calendarShowsTomorrow ? 24 * 60 - nowMinutes + eventMinutes : eventMinutes - nowMinutes;
     const countdown = formatCountdown(minutesUntil);
-    eventLine = countdown ? `${firstEvent.title} ${countdown}` : `${firstEvent.title} at ${formatTime12h(firstEvent.start)}`;
+    eventLine = countdown ? `${firstEvent.title} ${countdown}` : `${firstEvent.title} at ${formatTimeOfDay(firstEvent.start)}`;
   }
   setText("briefing-summary", eventLine);
 }
@@ -1799,6 +2050,59 @@ async function postAction(path) {
 }
 
 let soundLibraryLoaded = false;
+let soundDisplayNameById = new Map();
+
+// Last few distinct sounds actually chosen (via the picker or a recent
+// chip) - most-recent-first, deduped, capped short since this is meant to
+// be a handful of quick-tap favorites, not a full history. Clock/Sound
+// page only, see .sound-recent's comment in style.css.
+const RECENT_SOUNDS_KEY = "aurora-dashboard:recent-sounds";
+const RECENT_SOUNDS_MAX = 4;
+let recentSoundIds = [];
+try {
+  recentSoundIds = JSON.parse(localStorage.getItem(RECENT_SOUNDS_KEY) || "[]");
+} catch (err) {
+  recentSoundIds = [];
+}
+
+function renderRecentSounds() {
+  const container = byId("sound-recent");
+  if (!container) return;
+  if (recentSoundIds.length === 0) {
+    container.classList.add("hidden");
+    return;
+  }
+  container.innerHTML = recentSoundIds
+    .map((id) => {
+      const name = soundDisplayNameById.get(id) || id;
+      const active = id === currentSoundId && isLocallyPlaying;
+      return `<button class="sound-recent-chip${active ? " active" : ""}" type="button" data-sound-id="${escapeHtml(id)}">${escapeHtml(name)}</button>`;
+    })
+    .join("");
+  container.classList.remove("hidden");
+}
+
+function recordRecentSound(soundId) {
+  if (!soundId) return;
+  recentSoundIds = [soundId, ...recentSoundIds.filter((id) => id !== soundId)].slice(0, RECENT_SOUNDS_MAX);
+  localStorage.setItem(RECENT_SOUNDS_KEY, JSON.stringify(recentSoundIds));
+  renderRecentSounds();
+}
+
+function setupRecentSounds() {
+  const container = byId("sound-recent");
+  if (!container) return;
+  container.addEventListener("click", async (event) => {
+    const chip = event.target.closest(".sound-recent-chip");
+    if (!chip) return;
+    const soundId = chip.dataset.soundId;
+    if (!soundId) return;
+    await startLocalPlayback(soundId, 0);
+    await postAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
+    recordRecentSound(soundId);
+    poll();
+  });
+}
 
 async function ensureSoundLibraryLoaded() {
   if (soundLibraryLoaded) return;
@@ -1826,6 +2130,8 @@ async function ensureSoundLibraryLoaded() {
     // The default-sound picker itself has no "Default" option - it IS the
     // thing being set.
     if (defaultAlarmSoundPicker) defaultAlarmSoundPicker.innerHTML = optionsHtml;
+    soundDisplayNameById = new Map(entries.map((entry) => [entry.id, entry.displayName]));
+    renderRecentSounds();
     soundLibraryLoaded = entries.length > 0;
   } catch (err) {
     // Aurora unreachable at startup - retried after the next successful poll.
@@ -1870,6 +2176,7 @@ function setupSoundControlsFor(idSuffix) {
     if (!soundId) return;
     await startLocalPlayback(soundId, 0);
     await postAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
+    recordRecentSound(soundId);
     poll();
   });
 
@@ -1894,10 +2201,40 @@ function setupSoundControlsFor(idSuffix) {
   });
 }
 
+// Mute is just "volume 0, remember what it was" - derived from
+// state.volume === 0 for the icon (see renderSoundMachine above) rather
+// than a separate tracked boolean, so it can never disagree with what
+// Aurora actually reports. Shared across all three UI surfaces (Overview
+// card, Clock/Sound page, Bedside overlay) since they all reflect the same
+// underlying volume, not three independent ones.
+let volumeBeforeMute = null;
+
+function setupMuteButtons() {
+  SOUND_MACHINE_ID_SUFFIXES.forEach((suffix) => {
+    const muteBtn = byId(`sound-mute${suffix}`);
+    const volumeInput = byId(`sound-volume${suffix}`);
+    if (!muteBtn || !volumeInput) return;
+
+    muteBtn.addEventListener("click", () => {
+      const current = Number(volumeInput.value);
+      const target = current > 0 ? 0 : volumeBeforeMute || 50;
+      if (current > 0) volumeBeforeMute = current;
+
+      volumeInput.value = String(target);
+      setText(`sound-volume-label${suffix}`, `${target}%`);
+      setIcon(`volume-icon${suffix}`, target === 0 ? "volumeMuted" : "volume");
+      setLocalVolume(target);
+      postAction(`/sound/volume?value=${target}`);
+    });
+  });
+}
+
 function setupSoundControls() {
   setupSoundControlsFor("");
   setupSoundControlsFor("-lg");
   setupSoundControlsFor("-bedside");
+  setupMuteButtons();
+  setupRecentSounds();
 }
 
 // ---------------------------------------------------------------------------
@@ -1956,11 +2293,13 @@ function renderWakeAlarms(alarms) {
   const sorted = alarms.slice().sort((a, b) => a.hour - b.hour || a.minute - b.minute);
   list.innerHTML = sorted
     .map((alarm) => {
-      const time = formatTime12h(`${String(alarm.hour).padStart(2, "0")}:${String(alarm.minute).padStart(2, "0")}`);
+      const time = formatTimeOfDay(`${String(alarm.hour).padStart(2, "0")}:${String(alarm.minute).padStart(2, "0")}`);
+      const labelHtml = alarm.label ? `<span class="wakealarm-item-label">${escapeHtml(alarm.label)}</span>` : "";
       return `<li class="wakealarm-item${alarm.enabled ? "" : " disabled"}" data-id="${escapeHtml(alarm.id)}">
         <input type="checkbox" class="wakealarm-toggle" ${alarm.enabled ? "checked" : ""} aria-label="Enabled" />
         <div class="wakealarm-item-info">
           <span class="wakealarm-item-time">${time}</span>
+          ${labelHtml}
           <span class="wakealarm-item-days">${escapeHtml(formatWakeAlarmDays(alarm.daysOfWeek))}</span>
         </div>
         <button class="icon-button wakealarm-delete" type="button" aria-label="Delete alarm">
@@ -2045,6 +2384,7 @@ function setupWakeAlarmForm() {
 
   byId("wakealarm-add-btn")?.addEventListener("click", () => {
     const timeInput = byId("wakealarm-time-input");
+    const labelInput = byId("wakealarm-label-input");
     const soundPicker = byId("wakealarm-sound-picker");
     const [hour, minute] = (timeInput?.value || "").split(":").map(Number);
     if (Number.isNaN(hour) || Number.isNaN(minute)) return;
@@ -2055,10 +2395,11 @@ function setupWakeAlarmForm() {
       minute,
       daysOfWeek: Array.from(selectedWakeAlarmDays),
       enabled: true,
-      label: "",
+      label: labelInput?.value.trim() || "",
       soundId: soundPicker?.value || null,
     });
 
+    if (labelInput) labelInput.value = "";
     selectedWakeAlarmDays = new Set();
     byId("wakealarm-days")
       ?.querySelectorAll(".wakealarm-day-btn.active")
@@ -2122,6 +2463,37 @@ async function startWakeAlarmSound(soundId) {
   wakeAlarmGainNode.gain.linearRampToValueAtTime(1, now + WAKE_ALARM_RAMP_SECONDS);
 }
 
+// Screen brightness ramps alongside the audio gain ramp above - same
+// motivation (a jarring full-brightness flash is as rude a wake-up as a
+// blast of full-volume sound), same duration, just driven by setInterval
+// since Fully's setScreenBrightness is a plain imperative call, not a Web
+// Audio param that supports its own scheduling.
+const WAKE_ALARM_BRIGHTNESS_START = 15;
+const WAKE_ALARM_BRIGHTNESS_TICK_MS = 1000;
+let wakeAlarmBrightnessInterval = null;
+
+function startAlarmBrightnessRamp() {
+  if (!window.fully || typeof window.fully.setScreenBrightness !== "function") return;
+  stopAlarmBrightnessRamp();
+  const startTime = Date.now();
+  const durationMs = WAKE_ALARM_RAMP_SECONDS * 1000;
+  window.fully.setScreenBrightness(WAKE_ALARM_BRIGHTNESS_START);
+  wakeAlarmBrightnessInterval = setInterval(() => {
+    const progress = Math.min((Date.now() - startTime) / durationMs, 1);
+    const brightness = Math.round(
+      WAKE_ALARM_BRIGHTNESS_START + (DAY_SCREEN_BRIGHTNESS - WAKE_ALARM_BRIGHTNESS_START) * progress
+    );
+    window.fully.setScreenBrightness(brightness);
+    if (progress >= 1) stopAlarmBrightnessRamp();
+  }, WAKE_ALARM_BRIGHTNESS_TICK_MS);
+}
+
+function stopAlarmBrightnessRamp() {
+  if (!wakeAlarmBrightnessInterval) return;
+  clearInterval(wakeAlarmBrightnessInterval);
+  wakeAlarmBrightnessInterval = null;
+}
+
 function stopWakeAlarmSound() {
   if (!wakeAlarmSource) return;
   try {
@@ -2176,6 +2548,7 @@ function reconcileWakeAlarm(ringingState) {
     stopLocalPlaybackFully();
     postAction("/sound/stop");
     startWakeAlarmSound(ringingState.soundId);
+    startAlarmBrightnessRamp();
     showAlarmRingingOverlay(ringingState.label);
     // A ringing alarm needs the full-screen dismiss/snooze overlay visible
     // and audible - staying in Bedside Mode's own dim, quiet view would bury
@@ -2187,6 +2560,12 @@ function reconcileWakeAlarm(ringingState) {
   } else if (!shouldRing && isAlarmRinging) {
     isAlarmRinging = false;
     stopWakeAlarmSound();
+    stopAlarmBrightnessRamp();
+    // Re-evaluate day/night brightness from scratch rather than leaving
+    // the screen wherever the ramp left it - if it's still nighttime, this
+    // puts it back to the dim level instead of stuck bright post-dismiss.
+    isNightMode = null;
+    applyDayNightMode();
     hideAlarmRingingOverlay();
   }
 }
@@ -2479,6 +2858,23 @@ function setBedsideBrightness(percent) {
   setText("bedside-brightness-label", `${percent}%`);
 }
 
+/** Checked once, at the moment of tapping the moon icon - "going to bed"
+ *  is a much more specific, deliberate signal than the ambient day/night
+ *  dim transition (which just means the room got dark, not that anyone's
+ *  actually about to sleep), so this is tied to enterBedsideMode() rather
+ *  than applyDayNightMode(). Reuses .battery-warning's existing look
+ *  rather than inventing a new banner style for what's the same "phone's
+ *  low and not charging" fact, just surfaced at a different moment. */
+function showBedsideBatteryNudgeIfLow() {
+  const banner = byId("bedside-battery-nudge");
+  if (!banner) return;
+  const low = latestBattery != null && latestBattery < LOW_BATTERY_THRESHOLD && !latestCharging;
+  banner.classList.toggle("hidden", !low);
+  if (!low) return;
+  setIcon("bedside-battery-nudge-icon", "batteryAlert");
+  setText("bedside-battery-nudge-text", `Phone at ${latestBattery}% and not charging - plug it in`);
+}
+
 async function enterBedsideMode() {
   // Mutually exclusive with Ambient Mode - see setupAmbientMode()'s doc
   // comment for why idle-triggered ambient viewing never fires while
@@ -2488,6 +2884,7 @@ async function enterBedsideMode() {
 
   byId("bedside-overlay")?.classList.remove("hidden");
   document.body.classList.add("bedside-active");
+  showBedsideBatteryNudgeIfLow();
 
   const slider = byId("bedside-brightness-slider");
   if (slider) slider.value = String(BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT);
@@ -2936,7 +3333,12 @@ function init() {
   setupRadar();
   setupManualRefresh();
   setupDimOffsetSlider();
+  setupDimIntensitySlider();
+  setupClockFormatSetting();
+  setupTempUnitSetting();
   setupProfileSettings();
+  setupStickyNote();
+  setupAutoBedsideSetting();
   setupWallpaperSettings();
   setupLayoutSettings();
   setupAmbientTimeoutSetting();

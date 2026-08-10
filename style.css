@@ -115,7 +115,12 @@ body {
    a slow 3s transition so it reads as the room settling in, not a jarring
    flicker. See applyDayNightMode() in script.js for when this toggles. */
 body.dimmed {
-  filter: brightness(0.45) contrast(0.95);
+  /* --dim-intensity is a 0-1 brightness multiplier set from the Settings
+     page's "Dim intensity" slider (see setupDimIntensitySlider() in
+     script.js) - 0.45 is the original hardcoded default, kept as the
+     var()'s fallback so nothing changes for anyone who's never touched
+     the new slider. */
+  filter: brightness(var(--dim-intensity, 0.45)) contrast(0.95);
 }
 
 button,
@@ -169,17 +174,25 @@ input {
 .page-overview {
   display: grid;
   grid-template-columns: minmax(260px, 38%) 1fr;
-  /* Row 1 (auto) is the severe alert banner - 0-height when hidden
-     (display:none removes it from grid layout entirely), so it never
-     steals space from row 2 when there's nothing to show. Row 2 is the
-     original hero-panel/card-grid pair, still side by side. */
-  grid-template-rows: auto 1fr;
+  /* Row 1 (auto) is the severe alert banner, row 2 (auto) is the sticky
+     note - both 0-height when hidden (display:none removes them from grid
+     layout entirely), so neither steals space from row 3 when there's
+     nothing to show. Row 3 is the original hero-panel/card-grid pair,
+     still side by side. Both banner rows are now explicitly placed
+     (grid-column/grid-row on each) rather than left to auto-placement,
+     now that there's more than one of them to keep straight. */
+  grid-template-rows: auto auto 1fr;
   gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.sticky-note-banner {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .hero-panel {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 3;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -341,6 +354,8 @@ input {
    urgent, with a slow icon pulse to catch a glance without being frantic. */
 
 .severe-alert-banner {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 0.6em;
@@ -381,6 +396,50 @@ input {
   50% {
     opacity: 0.5;
   }
+}
+
+/* ---- Sticky note / reminder ------------------------------------------------
+   A short, dashboard-only reminder (see the Settings page's Profile-
+   adjacent Note field) - deliberately its own grid row (see
+   .page-overview's grid-template-rows) rather than shoehorned into the
+   hero-panel's already-tight flex column, which is exactly what caused
+   the severe-alert-banner squeeze bug documented above. Styled distinctly
+   from that banner (accent-tinted, not danger-red) since this is a
+   personal note, not an emergency. */
+
+.sticky-note-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 0.9em;
+  border-radius: 0.6em;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  color: var(--text-primary);
+}
+
+.sticky-note-banner .icon-slot {
+  flex: none;
+  color: var(--accent);
+}
+
+.sticky-note-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-note-dismiss {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  padding: 0.1em 0.3em;
+  cursor: pointer;
 }
 
 /* An active banner eats real height from the same fixed-height row the
@@ -437,7 +496,7 @@ body.has-severe-alert .page-daily .hero-tile {
 
 .card-grid {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
   gap: clamp(0.5rem, 1.4vw, 1rem);
@@ -903,6 +962,30 @@ body.has-severe-alert .page-daily .hero-tile {
   color: inherit;
 }
 
+/* A plain clickable icon with no circular background - for a small inline
+   toggle like the volume-row mute button, where the full .icon-button
+   pill would visually outweigh the slider/label it sits next to. Keeps a
+   generous touch target via padding rather than a large visible shape. */
+.icon-button-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3em;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.icon-button-small:active {
+  color: var(--accent);
+}
+
+.icon-button-small .icon-slot {
+  color: inherit;
+}
+
 .icon-slot.xlarge {
   width: clamp(2.4rem, 6vw, 3.6rem);
   height: clamp(2.4rem, 6vw, 3.6rem);
@@ -1247,6 +1330,36 @@ body.has-severe-alert .page-daily .hero-tile {
   padding: 0.5em 0.7em;
 }
 
+/* Quick-select chips for the last few distinct sounds actually played -
+   see RECENT_SOUNDS_KEY in script.js. Clock/Sound page only (there's no
+   room for this on the compact Overview card); hidden entirely until at
+   least one sound has been picked, rather than showing empty placeholder
+   chips. */
+.sound-recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+.sound-recent-chip {
+  flex: none;
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  padding: 0.4em 0.9em;
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sound-recent-chip.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
 .icon-button-lg {
   width: clamp(3.2rem, 7vw, 4.2rem);
   height: clamp(3.2rem, 7vw, 4.2rem);
@@ -1345,6 +1458,14 @@ body.has-severe-alert .page-daily .hero-tile {
   font-variant-numeric: tabular-nums;
 }
 
+.wakealarm-item-label {
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wakealarm-item-days {
   font-size: var(--fs-caption);
   color: var(--text-secondary);
@@ -1380,6 +1501,22 @@ body.has-severe-alert .page-daily .hero-tile {
   border-radius: var(--radius-md);
   padding: 0.35em 0.5em;
   font-size: var(--fs-caption);
+}
+
+.wakealarm-label-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  padding: 0.35em 0.6em;
+  font-family: inherit;
+  font-size: var(--fs-caption);
+}
+
+.wakealarm-label-input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .wakealarm-days {
@@ -1572,6 +1709,21 @@ body.has-severe-alert .page-daily .hero-tile {
 .settings-segment.active {
   background: var(--accent);
   color: var(--surface);
+}
+
+/* A second, compact use of the same segmented-control look - nested
+   inside a .settings-text-row (label + control) instead of standing alone
+   under its own section title, for simple two-option settings like clock
+   format / temperature unit that don't need a whole section to themselves. */
+.settings-segmented-inline {
+  flex: 1;
+  margin-bottom: 0;
+  max-width: 16em;
+}
+
+.settings-segmented-inline .settings-segment {
+  font-size: var(--fs-caption);
+  padding: 0.4em 0.3em;
 }
 
 .settings-photo-grid {
@@ -2183,6 +2335,17 @@ body.bedside-active {
   color: var(--text-secondary);
 }
 
+/* Daily Info's hero-tile has no room left for this (confirmed live - it
+   reintroduced the exact overflow bug fixed earlier this session), and
+   Ambient Mode's screensaver has nothing but blank space around the tiny
+   clock/weather anyway - a genuinely better fit for a purely decorative
+   detail like this besides. */
+.ambient-moon {
+  font-size: var(--fs-body);
+  color: var(--text-tertiary);
+  margin-top: 0.3em;
+}
+
 /* Independently dimmable from Bedside Mode's own brightness (idle
    ambient viewing vs. "going to sleep" are different enough moments that
    they shouldn't have to share one brightness value). */
@@ -2756,21 +2919,27 @@ body.ambient-active .weather-bg {
 
   .page-overview {
     grid-template-columns: 1fr;
-    /* Stacked single column now: banner, then hero-panel, then card-grid,
-       each on their own row instead of hero-panel/card-grid sharing row 2. */
-    grid-template-rows: auto auto 1fr;
+    /* Stacked single column now: alert banner, sticky note, hero-panel,
+       then card-grid, each on their own row instead of hero-panel/
+       card-grid sharing a row. */
+    grid-template-rows: auto auto auto 1fr;
+  }
+
+  .sticky-note-banner {
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .hero-panel {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 3;
     flex-direction: column;
     gap: 0.75rem;
   }
 
   .card-grid {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 4;
     height: auto;
   }
 

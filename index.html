@@ -60,6 +60,11 @@
           <div class="severe-alert-headline" id="severe-alert-headline"></div>
         </div>
       </div>
+      <div class="sticky-note-banner hidden" id="sticky-note-banner">
+        <span class="icon-slot small" id="sticky-note-icon" aria-hidden="true"></span>
+        <span class="sticky-note-text" id="sticky-note-text"></span>
+        <button class="sticky-note-dismiss" id="sticky-note-dismiss" type="button" aria-label="Dismiss note">&times;</button>
+      </div>
       <section class="hero-panel">
         <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
           <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
@@ -188,7 +193,9 @@
             </div>
 
             <div class="sound-row">
-              <span class="icon-slot small" id="volume-icon" aria-hidden="true"></span>
+              <button class="icon-button icon-button-small" id="sound-mute" type="button" aria-label="Mute">
+                <span class="icon-slot small" id="volume-icon" aria-hidden="true"></span>
+              </button>
               <input type="range" id="sound-volume" class="sound-volume" min="0" max="100" value="50" aria-label="Volume" />
               <span class="sound-volume-label" id="sound-volume-label">50%</span>
             </div>
@@ -335,7 +342,9 @@
         </div>
 
         <div class="sound-row sound-row-lg">
-          <span class="icon-slot small" id="volume-icon-lg" aria-hidden="true"></span>
+          <button class="icon-button icon-button-small" id="sound-mute-lg" type="button" aria-label="Mute">
+            <span class="icon-slot small" id="volume-icon-lg" aria-hidden="true"></span>
+          </button>
           <input type="range" id="sound-volume-lg" class="sound-volume sound-volume-lg" min="0" max="100" value="50" aria-label="Volume" />
           <span class="sound-volume-label" id="sound-volume-label-lg">50%</span>
         </div>
@@ -352,6 +361,8 @@
             <option value="untilAlarm">Timer: Alarm</option>
           </select>
         </div>
+
+        <div class="sound-recent hidden" id="sound-recent" aria-label="Recently played sounds"></div>
       </section>
     </section>
 
@@ -374,6 +385,9 @@
       </ul>
 
       <div class="wakealarm-form">
+        <div class="wakealarm-form-row">
+          <input type="text" id="wakealarm-label-input" class="wakealarm-label-input" placeholder="Label (optional)" autocomplete="off" aria-label="Alarm label" />
+        </div>
         <div class="wakealarm-form-row">
           <input type="time" id="wakealarm-time-input" class="wakealarm-time-input" aria-label="Alarm time" />
           <select class="sound-select" id="wakealarm-sound-picker" aria-label="Alarm sound"></select>
@@ -398,6 +412,10 @@
         <div class="settings-text-row">
           <span class="settings-text-label">Name</span>
           <input type="text" id="settings-name-input" class="settings-text-input" placeholder="Your name" autocomplete="off" aria-label="Your name" />
+        </div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Note</span>
+          <input type="text" id="settings-note-input" class="settings-text-input" placeholder="Reminder shown on Overview" autocomplete="off" aria-label="Sticky note reminder" />
         </div>
       </div>
 
@@ -433,6 +451,25 @@
           <input type="range" id="dim-offset-slider" class="dim-offset-slider" min="-120" max="120" step="15" value="0" aria-label="Shift auto-dim schedule earlier or later" />
           <span class="dim-offset-value" id="dim-offset-value">On time</span>
         </div>
+        <div class="dim-offset-row">
+          <span class="dim-offset-label">Dim intensity</span>
+          <input type="range" id="dim-intensity-slider" class="dim-offset-slider" min="10" max="90" step="5" value="45" aria-label="How dark the display gets at night" />
+          <span class="dim-offset-value" id="dim-intensity-value">45%</span>
+        </div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Clock format</span>
+          <div class="settings-segmented settings-segmented-inline" id="clock-format-segmented" role="radiogroup" aria-label="Clock format">
+            <button class="settings-segment" type="button" data-format="12h">12-hour</button>
+            <button class="settings-segment" type="button" data-format="24h">24-hour</button>
+          </div>
+        </div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Temperature</span>
+          <div class="settings-segmented settings-segmented-inline" id="temp-unit-segmented" role="radiogroup" aria-label="Temperature unit">
+            <button class="settings-segment" type="button" data-unit="F">&deg;F</button>
+            <button class="settings-segment" type="button" data-unit="C">&deg;C</button>
+          </div>
+        </div>
       </div>
 
       <div class="settings-section">
@@ -446,6 +483,18 @@
             <option value="30">30 minutes</option>
             <option value="60">60 minutes</option>
           </select>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Bedside Mode</h2>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Enter automatically</span>
+          <button class="settings-switch" id="auto-bedside-toggle" role="switch" aria-checked="false" aria-label="Enter Bedside Mode automatically"></button>
+        </div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">At</span>
+          <input type="time" id="auto-bedside-time" class="wakealarm-time-input" aria-label="Automatic Bedside Mode time" />
         </div>
       </div>
 
@@ -546,6 +595,10 @@
         <span id="alarm-time-bedside">–</span>
       </div>
       <div class="bedside-tomorrow" id="bedside-tomorrow"></div>
+      <div class="battery-warning hidden" id="bedside-battery-nudge" role="alert">
+        <span class="icon-slot small" id="bedside-battery-nudge-icon" aria-hidden="true"></span>
+        <span id="bedside-battery-nudge-text"></span>
+      </div>
     </div>
 
     <div class="bedside-clock">
@@ -586,7 +639,9 @@
       </div>
 
       <div class="sound-row sound-row-lg">
-        <span class="icon-slot small" id="volume-icon-bedside" aria-hidden="true"></span>
+        <button class="icon-button icon-button-small" id="sound-mute-bedside" type="button" aria-label="Mute">
+          <span class="icon-slot small" id="volume-icon-bedside" aria-hidden="true"></span>
+        </button>
         <input type="range" id="sound-volume-bedside" class="sound-volume sound-volume-lg" min="0" max="100" value="50" aria-label="Volume" />
         <span class="sound-volume-label" id="sound-volume-label-bedside">50%</span>
       </div>
@@ -618,6 +673,7 @@
     <div class="ambient-content">
       <div class="ambient-clock" id="clock-time-ambient">--:--</div>
       <div class="ambient-weather" id="ambient-weather"></div>
+      <div class="ambient-moon" id="ambient-moon"></div>
     </div>
   </div>
 

@@ -952,6 +952,27 @@ body.has-severe-alert .page-daily .hero-tile {
   font-variant-numeric: tabular-nums;
 }
 
+/* Daily Info's hero-tile stacks more rows than Phone's (icon, temp,
+   condition, H/L, sunrise/sunset, AQI, details) - on the Echo Show's fixed
+   960x480 viewport this overflows the page even with no severe alert
+   active, confirmed live (the weather-details-lg line was clipped at the
+   screen edge). --fs-hero/.icon-slot.xlarge are width-driven (vw) clamps,
+   not height-aware, so they don't shrink on their own - override
+   unconditionally for this page rather than only under
+   body.has-severe-alert, which already layers a further squeeze on top. */
+.page-daily .hero-tile {
+  gap: clamp(0.15rem, 0.6vh, 0.35rem);
+}
+
+.page-daily .icon-slot.xlarge {
+  width: clamp(1.8rem, 4vw, 2.6rem);
+  height: clamp(1.8rem, 4vw, 2.6rem);
+}
+
+.page-daily .hero-value {
+  font-size: clamp(2rem, 6vw, 3rem);
+}
+
 .hero-caption {
   font-size: var(--fs-body-lg);
   color: var(--text-secondary);
@@ -1006,10 +1027,14 @@ body.has-severe-alert .page-daily .hero-tile {
 /* One compact line for feels-like/wind/humidity/UV rather than a row
    each - hero-tile is already tight (icon, temp, condition, H/L,
    sunrise/sunset, rain, AQI all share this column), and these four are
-   secondary detail, not headline numbers. */
+   secondary detail, not headline numbers. Uses --text-secondary rather
+   than --text-tertiary - confirmed live that --fs-caption + tertiary
+   nearly disappears against a busy wallpaper photo even with the body's
+   text-shadow, since it's both the smallest text and the dimmest color
+   on the page at the same time. */
 .weather-details-lg {
   font-size: var(--fs-caption);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 /* ---- Daily forecast strip (Daily Info page) -------------------------------

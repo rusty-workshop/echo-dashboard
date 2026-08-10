@@ -267,6 +267,12 @@ input {
   font-size: var(--fs-caption);
   color: var(--text-tertiary);
   transition: color var(--transition-color);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.status-line:active {
+  opacity: 0.6;
 }
 
 .status-line .dot {
@@ -275,6 +281,24 @@ input {
   border-radius: 50%;
   background: currentColor;
   flex: none;
+  transition: transform var(--transition-fast);
+}
+
+/* Tap-to-refresh feedback (see setupManualRefresh() in script.js) - a
+   brief spin on the same dot that otherwise just signals connection
+   state, so tapping reads as "asked for fresh data" without adding a
+   whole separate icon/button to this already-small line. */
+.status-line.refreshing .dot {
+  animation: status-dot-spin 0.6s ease-in-out;
+}
+
+@keyframes status-dot-spin {
+  50% {
+    transform: scale(1.6) rotate(180deg);
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
 }
 
 .status-line.state-reconnecting {
@@ -357,6 +381,44 @@ input {
   50% {
     opacity: 0.5;
   }
+}
+
+/* An active banner eats real height from the same fixed-height row the
+   clock/briefing/status-line share (see .page-overview's grid-template-
+   rows comment) - none of those are otherwise height-aware, their
+   clamp()s are all width-driven (vw), so nothing was shrinking to
+   compensate and the status line (last in DOM order) was getting pushed
+   past .page's own overflow:hidden edge and disappearing entirely.
+   Toggled by renderSevereAlert() in script.js via a body class rather
+   than a :has() selector, so this doesn't depend on relational-selector
+   support in this kiosk's (older) WebView. */
+body.has-severe-alert {
+  --fs-clock: clamp(1.6rem, 6vw, 2.4rem);
+  --fs-greeting: clamp(1rem, 2vw, 1.3rem);
+  --fs-briefing: clamp(0.78rem, 1.4vw, 0.92rem);
+}
+
+body.has-severe-alert .clock-panel {
+  gap: 0;
+}
+
+body.has-severe-alert .briefing {
+  gap: 0.15rem;
+}
+
+/* Same squeeze, same fix, on the Daily Info page: its own banner plus
+   the forecast strip and radar panel all compete for the same fixed
+   page height as .hero-tile's stacked readouts (icon, temp, condition,
+   H/L, sunrise/sunset, rain, AQI, weather details). Scoped to
+   .page-daily specifically - the Phone page's hero-tile also uses
+   --fs-hero for its battery %, but never shows this banner, so it has
+   no reason to shrink. */
+body.has-severe-alert .page-daily .hero-value {
+  font-size: clamp(1.8rem, 6vw, 2.8rem);
+}
+
+body.has-severe-alert .page-daily .hero-tile {
+  gap: 0.2rem;
 }
 
 /* ---- Card grid -----------------------------------------------------------
@@ -941,6 +1003,15 @@ input {
   color: inherit;
 }
 
+/* One compact line for feels-like/wind/humidity/UV rather than a row
+   each - hero-tile is already tight (icon, temp, condition, H/L,
+   sunrise/sunset, rain, AQI all share this column), and these four are
+   secondary detail, not headline numbers. */
+.weather-details-lg {
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+}
+
 /* ---- Daily forecast strip (Daily Info page) -------------------------------
    Today plus the next few days, each a small column of weekday/icon/
    high-low - sits above the hero-tile/radar/schedule row so it doesn't
@@ -1344,6 +1415,66 @@ input {
   gap: clamp(0.5rem, 1.4vh, 0.85rem) clamp(0.6rem, 1.6vw, 1rem);
 }
 
+/* ---- Display settings ------------------------------------------------------
+   A manual nudge on top of applyDayNightMode()'s sunrise/sunset-driven
+   schedule (see script.js) - shifts both edges of the dim window by the
+   same offset rather than exposing two separate controls, since "I want
+   it darker earlier tonight" is the actual use case, not independently
+   retuning sunrise vs sunset. */
+
+.dim-offset-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 0.7em 1em;
+}
+
+.dim-offset-label {
+  flex: none;
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+}
+
+.dim-offset-slider {
+  flex: 1;
+  min-width: 0;
+  height: 1.3em;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.dim-offset-slider::-webkit-slider-runnable-track {
+  height: 0.35em;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+}
+
+.dim-offset-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1em;
+  height: 1em;
+  margin-top: -0.33em;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+}
+
+.dim-offset-value {
+  flex: none;
+  min-width: 6.5em;
+  text-align: right;
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .theme-swatch {
   display: flex;
   flex-direction: column;
@@ -1431,6 +1562,7 @@ input {
 
 .alarm-ringing-actions {
   display: flex;
+  align-items: flex-start;
   gap: 1em;
   margin-top: 1em;
 }
@@ -1447,6 +1579,21 @@ input {
 .alarm-snooze-btn {
   background: var(--surface-elevated);
   color: var(--text-primary);
+}
+
+.alarm-snooze-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.alarm-snooze-duration {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+  text-align: center;
 }
 
 .alarm-dismiss-btn {

@@ -278,6 +278,7 @@
             <span class="icon-slot small" id="weather-aqi-icon-lg" aria-hidden="true"></span>
             <span id="weather-aqi-text-lg"></span>
           </div>
+          <div class="weather-details-lg hidden" id="weather-details-lg"></div>
         </div>
 
         <section class="panel panel-radar hidden" id="panel-radar" aria-label="Radar">
@@ -431,6 +432,13 @@
           <span class="theme-swatch-label">Gruvbox</span>
         </button>
       </div>
+
+      <h2 class="settings-title">Display</h2>
+      <div class="dim-offset-row">
+        <span class="dim-offset-label">Dim schedule</span>
+        <input type="range" id="dim-offset-slider" class="dim-offset-slider" min="-120" max="120" step="15" value="0" aria-label="Shift auto-dim schedule earlier or later" />
+        <span class="dim-offset-value" id="dim-offset-value">On time</span>
+      </div>
     </section>
   </div>
 
@@ -450,7 +458,16 @@
     <div class="alarm-ringing-time" id="alarm-ringing-time">--:--</div>
     <div class="alarm-ringing-label" id="alarm-ringing-label"></div>
     <div class="alarm-ringing-actions">
-      <button class="alarm-action-btn alarm-snooze-btn" id="alarm-snooze-btn" type="button">Snooze</button>
+      <div class="alarm-snooze-group">
+        <button class="alarm-action-btn alarm-snooze-btn" id="alarm-snooze-btn" type="button">Snooze</button>
+        <select class="alarm-snooze-duration" id="alarm-snooze-duration" aria-label="Snooze duration">
+          <option value="5">5m</option>
+          <option value="9">9m</option>
+          <option value="10">10m</option>
+          <option value="15">15m</option>
+          <option value="20">20m</option>
+        </select>
+      </div>
       <button class="alarm-action-btn alarm-dismiss-btn" id="alarm-dismiss-btn" type="button">Dismiss</button>
     </div>
   </div>

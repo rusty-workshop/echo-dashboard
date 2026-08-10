@@ -6,7 +6,7 @@
 
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
-`node_modules`. It pulls from [**Aurora**](https://github.com/rustyisacat/Aurora) v3.0, a
+`node_modules`. It pulls from [**Aurora**](https://github.com/rustyisacat/Aurora) v4.0, a
 companion Android app, over your home Wi-Fi and turns an old smart display
 into a self-hosted phone status board, morning briefing, bedside alarm
 clock, bedside sound machine, and an idle-screensaver photo frame — themed
@@ -111,11 +111,13 @@ however you like, right down to matching your own wallpaper's colors.
 
 ## Requirements
 
-- [Aurora](https://github.com/rustyisacat/Aurora) v3.0+ running on a phone on the
-  same Wi-Fi network as whatever device will display this. Ambient Mode's
-  photo rotation and the dashboard wallpaper both need Aurora v3.0
-  specifically (earlier versions don't have the Photo Picker endpoints);
-  everything else works against v2.0 too.
+- [Aurora](https://github.com/rustyisacat/Aurora) v4.0+ running on a phone on the
+  same Wi-Fi network as whatever device will display this. The Settings
+  page's write controls (name, home network, notification blocklist,
+  wallpaper, dashboard layout) need Aurora v4.0 specifically for their
+  HTTP routes; Ambient Mode's photo rotation and the dashboard wallpaper
+  need v3.0 at minimum (earlier versions don't have the Photo Picker
+  endpoints); everything else works against v2.0 too.
 - Any modern browser. Built and tested for a kiosk browser (e.g.
   [Fully Kiosk Browser](https://www.fully-kiosk.com/)) on a rooted/sideloaded
   Amazon Echo Show 5 (1st gen), but nothing here is Echo-Show-specific —

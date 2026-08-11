@@ -1908,6 +1908,48 @@ body.has-severe-alert .page-daily .hero-tile {
   border-color: var(--accent);
 }
 
+/* A quieter alternative to .settings-add-btn's filled accent look, for a
+   secondary action sitting right next to a primary one (e.g. "Stop
+   override" beside "Activate now") that shouldn't compete for attention. */
+.settings-btn-secondary {
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+}
+
+/* ---- Weather Background override settings ----------------------------------
+   Forces one of the same 8 animated weather-effect layers
+   (WEATHER_BG_BY_CONDITION in script.js) regardless of the real weather -
+   "Auto" (the default) just means setWeatherBackground() keeps following
+   the real condition like it always has. Pure localStorage/display
+   conceit, same reasoning as the theme picker - nothing here is real
+   weather data, so it never touches Aurora. */
+
+.weatherbg-effect-grid {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4em;
+  margin-bottom: 0.6em;
+}
+
+.weatherbg-effect-btn {
+  flex: none;
+  background: var(--surface);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0.55em 0.4em;
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.weatherbg-effect-btn.active {
+  background: var(--accent);
+  color: var(--surface);
+}
+
 /* ---- Notifications settings ------------------------------------------------
    The dashboard-side equivalent of the phone app's NotificationAppsCard -
    every app that's ever posted a notification, with a switch for whether

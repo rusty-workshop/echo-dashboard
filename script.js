@@ -349,10 +349,130 @@ const WEATHER_BG_BY_CONDITION = {
 function setWeatherBackground(condition, nightOverride) {
   const el = byId("weather-bg");
   if (!el) return;
-  const name = nightOverride ? "night" : WEATHER_BG_BY_CONDITION[condition] || "clouds";
+  const overrideEffect = computeActiveWeatherBgEffect();
+  const name = overrideEffect || (nightOverride ? "night" : WEATHER_BG_BY_CONDITION[condition] || "clouds");
   if (el.dataset.bg === name) return;
   el.dataset.bg = name;
   el.className = `weather-bg weather-bg--${name}`;
+}
+
+// ---------------------------------------------------------------------------
+// Weather Background override (Settings page) - forces one of the 8
+// effects above regardless of the real weather condition, either
+// immediately ("on demand") or on a recurring daily schedule. Pure
+// localStorage, no Aurora involvement, same reasoning as the theme picker:
+// this is a display conceit, not real weather data.
+// ---------------------------------------------------------------------------
+
+const WEATHER_BG_EFFECT_LABELS = {
+  sunny: "Sunny",
+  partlycloudy: "Partly Cloudy",
+  clouds: "Overcast",
+  fog: "Fog",
+  rain: "Rain",
+  snow: "Snow",
+  storm: "Storm",
+  night: "Night",
+};
+
+const WEATHER_BG_MANUAL_KEY = "aurora-dashboard:weatherbg-manual";
+const WEATHER_BG_SCHEDULE_KEY = "aurora-dashboard:weatherbg-schedule";
+
+/** {effect, expiresAt} | null. expiresAt is an epoch-ms number, or null for
+ *  an indefinite override - computed once at activation time (see
+ *  computeWeatherBgExpiresAt()) rather than re-derived from a stored
+ *  duration on every check, so "rest of day" only has to resolve what
+ *  "today" means once. */
+let weatherBgManualOverride = null;
+try {
+  weatherBgManualOverride = JSON.parse(localStorage.getItem(WEATHER_BG_MANUAL_KEY) || "null");
+} catch (err) {
+  weatherBgManualOverride = null;
+}
+
+/** [{id, effect, time: "HH:MM", duration}]. duration is "15"/"30"/"60"/
+ *  "120"/"240" (minutes), "restofday" (until local midnight), or
+ *  "indefinite" (treated as a full 24h window - see
+ *  activeScheduledWeatherBgEffect() - so it's always superseded by the
+ *  next real entry rather than genuinely never-ending). */
+let weatherBgSchedule = [];
+try {
+  weatherBgSchedule = JSON.parse(localStorage.getItem(WEATHER_BG_SCHEDULE_KEY) || "[]");
+} catch (err) {
+  weatherBgSchedule = [];
+}
+
+function saveWeatherBgManualOverride() {
+  if (weatherBgManualOverride) {
+    localStorage.setItem(WEATHER_BG_MANUAL_KEY, JSON.stringify(weatherBgManualOverride));
+  } else {
+    localStorage.removeItem(WEATHER_BG_MANUAL_KEY);
+  }
+}
+
+function saveWeatherBgSchedule() {
+  localStorage.setItem(WEATHER_BG_SCHEDULE_KEY, JSON.stringify(weatherBgSchedule));
+}
+
+/** Resolved once at activation time against "now", rather than stored as a
+ *  raw duration - see weatherBgManualOverride's doc comment. */
+function computeWeatherBgExpiresAt(duration) {
+  if (duration === "indefinite") return null;
+  if (duration === "restofday") {
+    const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
+    return Date.now() + (1440 - nowMinutes) * 60 * 1000;
+  }
+  const minutes = parseInt(duration, 10) || 60;
+  return Date.now() + minutes * 60 * 1000;
+}
+
+function activateWeatherBgOverride(effect, duration) {
+  weatherBgManualOverride = { effect, expiresAt: computeWeatherBgExpiresAt(duration) };
+  saveWeatherBgManualOverride();
+  if (lastWeatherData) renderWeather(lastWeatherData);
+}
+
+function stopWeatherBgOverride() {
+  weatherBgManualOverride = null;
+  saveWeatherBgManualOverride();
+  if (lastWeatherData) renderWeather(lastWeatherData);
+}
+
+/** [entries] sorted by time ascending. Each entry is "live" for its own
+ *  duration window starting at its time-of-day; on overlap, whichever
+ *  entry started most recently wins - same "most recently passed" rule
+ *  activeScheduledPhotoId() uses for the wallpaper schedule. Returns null
+ *  (meaning "Auto") when no entry's window currently contains "now". */
+function activeScheduledWeatherBgEffect() {
+  if (weatherBgSchedule.length === 0) return null;
+  const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
+  const sorted = [...weatherBgSchedule].sort((a, b) => minutesFromHHMM(a.time) - minutesFromHHMM(b.time));
+  let active = null;
+  for (const entry of sorted) {
+    const start = minutesFromHHMM(entry.time);
+    const windowMinutes =
+      entry.duration === "restofday" ? 1440 - start : entry.duration === "indefinite" ? 1440 : parseInt(entry.duration, 10) || 60;
+    const end = start + windowMinutes;
+    const inWindow = nowMinutes >= start && nowMinutes < end;
+    const wrapped = end > 1440 && nowMinutes < end - 1440;
+    if (inWindow || wrapped) active = entry;
+  }
+  return active ? active.effect : null;
+}
+
+/** The single source of truth setWeatherBackground() defers to: a live
+ *  manual override wins outright (clearing itself here once expired), then
+ *  the schedule, then null ("Auto" - follow the real weather as before). */
+function computeActiveWeatherBgEffect() {
+  if (weatherBgManualOverride) {
+    if (weatherBgManualOverride.expiresAt != null && Date.now() >= weatherBgManualOverride.expiresAt) {
+      weatherBgManualOverride = null;
+      saveWeatherBgManualOverride();
+    } else {
+      return weatherBgManualOverride.effect;
+    }
+  }
+  return activeScheduledWeatherBgEffect();
 }
 
 // ---------------------------------------------------------------------------
@@ -724,6 +844,25 @@ let autoBedsideEnabled = localStorage.getItem(AUTO_BEDSIDE_ENABLED_KEY) === "tru
 let autoBedsideTime = localStorage.getItem(AUTO_BEDSIDE_TIME_KEY) || "22:00";
 let autoBedsideLastFiredDateKey = null;
 
+// Whether entering Bedside Mode (manually or automatically) should start
+// the rain sound the way it always has - a plain on/off since some people
+// want the dimming/DND/brightness-ramp side of Bedside Mode without any
+// sound. Defaults on (the original, only) behavior.
+const BEDSIDE_AUTO_SOUND_KEY = "aurora-dashboard:bedside-auto-sound";
+let bedsideAutoSoundEnabled = localStorage.getItem(BEDSIDE_AUTO_SOUND_KEY) !== "false";
+
+function setupBedsideAutoSoundSetting() {
+  const toggle = byId("bedside-auto-sound-toggle");
+  if (!toggle) return;
+
+  toggle.setAttribute("aria-checked", String(bedsideAutoSoundEnabled));
+  toggle.addEventListener("click", () => {
+    bedsideAutoSoundEnabled = !bedsideAutoSoundEnabled;
+    toggle.setAttribute("aria-checked", String(bedsideAutoSoundEnabled));
+    localStorage.setItem(BEDSIDE_AUTO_SOUND_KEY, String(bedsideAutoSoundEnabled));
+  });
+}
+
 function maybeAutoEnterBedside() {
   if (!autoBedsideEnabled) return;
   if (document.body.classList.contains("bedside-active")) return;
@@ -899,6 +1038,18 @@ function updateClock() {
   updateStatusLine();
   applyDayNightMode();
   maybeAutoEnterBedside();
+
+  // Catches a manual override expiring or a schedule window opening/
+  // closing between /dashboard polls (every 30s) - setWeatherBackground()
+  // itself is a cheap no-op when the resolved effect hasn't changed, so
+  // this is fine to re-check every tick rather than adding a second timer.
+  // renderWeatherBgActiveHint() keeps the Settings page's "Forcing X
+  // until..." line in sync with the same expiry, not just the background
+  // layer itself - both a no-op when the Settings page isn't visible.
+  if (lastWeatherData) {
+    setWeatherBackground(lastWeatherData.condition, isPastNightWeatherThreshold(timeZone));
+  }
+  renderWeatherBgActiveHint();
 }
 
 function startClock() {
@@ -2890,8 +3041,10 @@ async function enterBedsideMode() {
   if (slider) slider.value = String(BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT);
   setBedsideBrightness(BEDSIDE_DEFAULT_BRIGHTNESS_PERCENT);
 
-  await startLocalPlayback(BEDSIDE_RAIN_SOUND_ID, 0);
-  await postAction(`/sound/play?id=${BEDSIDE_RAIN_SOUND_ID}`);
+  if (bedsideAutoSoundEnabled) {
+    await startLocalPlayback(BEDSIDE_RAIN_SOUND_ID, 0);
+    await postAction(`/sound/play?id=${BEDSIDE_RAIN_SOUND_ID}`);
+  }
 
   const disabledAlarms = Array.from(latestWakeAlarmsById.values()).filter((alarm) => !alarm.enabled);
   await Promise.all(disabledAlarms.map((alarm) => setWakeAlarm({ ...alarm, enabled: true })));
@@ -3240,6 +3393,128 @@ function setupWallpaperSettings() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Weather Background settings (Settings page) - the write side of
+// weatherBgManualOverride/weatherBgSchedule above. The effect grid +
+// duration select are a shared "staging area" for both actions below
+// them (Activate now / Schedule), the same shape as the wallpaper
+// schedule's photo grid + time input + Add button.
+// ---------------------------------------------------------------------------
+
+let weatherBgSelectedEffect = "rain";
+
+function weatherBgDurationLabel(duration) {
+  if (duration === "restofday") return "Rest of day";
+  if (duration === "indefinite") return "Indefinite";
+  const minutes = parseInt(duration, 10) || 60;
+  return minutes % 60 === 0 ? `${minutes / 60} hour${minutes === 60 ? "" : "s"}` : `${minutes} min`;
+}
+
+/** Same idea as currentMinutesInTimezone, in reverse - needed to show a
+ *  manual override's expiry in the same timezone the rest of the clock
+ *  uses, not the display's raw system time. */
+function hhmmFromEpoch(ms, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(ms));
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("hour")}:${get("minute")}`;
+}
+
+function renderWeatherBgActiveHint() {
+  const hint = byId("weatherbg-active-hint");
+  const stopBtn = byId("weatherbg-stop-btn");
+  if (!hint || !stopBtn) return;
+  if (!weatherBgManualOverride) {
+    hint.classList.add("hidden");
+    stopBtn.classList.add("hidden");
+    return;
+  }
+  const label = WEATHER_BG_EFFECT_LABELS[weatherBgManualOverride.effect] || weatherBgManualOverride.effect;
+  const untilText =
+    weatherBgManualOverride.expiresAt == null
+      ? "indefinitely"
+      : `until ${formatTimeOfDay(hhmmFromEpoch(weatherBgManualOverride.expiresAt, currentTimezone || undefined))}`;
+  hint.textContent = `Forcing ${label} ${untilText}`;
+  hint.classList.remove("hidden");
+  stopBtn.classList.remove("hidden");
+}
+
+function renderWeatherBgSchedule() {
+  const list = byId("weatherbg-schedule-list");
+  if (!list) return;
+  list.innerHTML = weatherBgSchedule
+    .map((entry) => {
+      const label = WEATHER_BG_EFFECT_LABELS[entry.effect] || entry.effect;
+      return `<div class="settings-schedule-row" data-id="${escapeHtml(entry.id)}">
+          <span class="settings-schedule-time">${escapeHtml(formatTimeOfDay(entry.time))} · ${escapeHtml(label)} · ${escapeHtml(weatherBgDurationLabel(entry.duration))}</span>
+          <button class="settings-schedule-remove" type="button" aria-label="Remove scheduled entry">&times;</button>
+        </div>`;
+    })
+    .join("");
+}
+
+function setupWeatherBgSettings() {
+  const grid = byId("weatherbg-effect-grid");
+  const durationSelect = byId("weatherbg-duration-select");
+  if (!grid) return;
+
+  grid.querySelectorAll(".weatherbg-effect-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.effect === weatherBgSelectedEffect);
+  });
+  renderWeatherBgActiveHint();
+  renderWeatherBgSchedule();
+
+  grid.addEventListener("click", (event) => {
+    const btn = event.target.closest(".weatherbg-effect-btn");
+    if (!btn) return;
+    const effect = btn.dataset.effect;
+    // "Auto" is an immediate action (go back to the real weather), not a
+    // staged pick like every other button here - it has nothing to do
+    // with the Activate/Schedule buttons below.
+    if (effect === "auto") {
+      stopWeatherBgOverride();
+      renderWeatherBgActiveHint();
+      return;
+    }
+    weatherBgSelectedEffect = effect;
+    grid.querySelectorAll(".weatherbg-effect-btn").forEach((b) => b.classList.toggle("active", b.dataset.effect === effect));
+  });
+
+  byId("weatherbg-activate-btn")?.addEventListener("click", () => {
+    activateWeatherBgOverride(weatherBgSelectedEffect, durationSelect?.value || "60");
+    renderWeatherBgActiveHint();
+  });
+
+  byId("weatherbg-stop-btn")?.addEventListener("click", () => {
+    stopWeatherBgOverride();
+    renderWeatherBgActiveHint();
+  });
+
+  byId("weatherbg-schedule-add-btn")?.addEventListener("click", () => {
+    const time = byId("weatherbg-schedule-time")?.value;
+    if (!time) return;
+    weatherBgSchedule = [
+      ...weatherBgSchedule,
+      { id: `${Date.now()}`, effect: weatherBgSelectedEffect, time, duration: durationSelect?.value || "60" },
+    ].sort((a, b) => minutesFromHHMM(a.time) - minutesFromHHMM(b.time));
+    saveWeatherBgSchedule();
+    renderWeatherBgSchedule();
+  });
+
+  byId("weatherbg-schedule-list")?.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest(".settings-schedule-remove");
+    if (!removeBtn) return;
+    const id = removeBtn.closest(".settings-schedule-row")?.dataset.id;
+    weatherBgSchedule = weatherBgSchedule.filter((entry) => entry.id !== id);
+    saveWeatherBgSchedule();
+    renderWeatherBgSchedule();
+  });
+}
+
 async function enterAmbientMode() {
   if (document.body.classList.contains("bedside-active")) return;
   await ensureAmbientPhotosLoaded();
@@ -3339,8 +3614,10 @@ function init() {
   setupProfileSettings();
   setupStickyNote();
   setupAutoBedsideSetting();
+  setupBedsideAutoSoundSetting();
   setupWallpaperSettings();
   setupLayoutSettings();
+  setupWeatherBgSettings();
   setupAmbientTimeoutSetting();
   setupHomeNetworkSettings();
   ensureSoundLibraryLoaded();

@@ -473,6 +473,44 @@
       </div>
 
       <div class="settings-section">
+        <h2 class="settings-title">Weather Background</h2>
+        <div class="settings-text-hint">Override the animated background - on demand or on a daily schedule. Auto follows the real weather.</div>
+        <div class="weatherbg-effect-grid" id="weatherbg-effect-grid" role="radiogroup" aria-label="Weather background effect">
+          <button class="weatherbg-effect-btn" type="button" data-effect="auto">Auto</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="sunny">Sunny</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="partlycloudy">Partly Cloudy</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="clouds">Overcast</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="fog">Fog</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="rain">Rain</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="snow">Snow</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="storm">Storm</button>
+          <button class="weatherbg-effect-btn" type="button" data-effect="night">Night</button>
+        </div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Duration</span>
+          <select id="weatherbg-duration-select" class="settings-select" aria-label="Weather background override duration">
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60" selected>1 hour</option>
+            <option value="120">2 hours</option>
+            <option value="240">4 hours</option>
+            <option value="restofday">Rest of day</option>
+            <option value="indefinite">Indefinite</option>
+          </select>
+        </div>
+        <div class="settings-schedule-add-row" id="weatherbg-activate-row">
+          <button class="settings-add-btn" type="button" id="weatherbg-activate-btn">Activate now</button>
+          <button class="settings-add-btn settings-btn-secondary hidden" type="button" id="weatherbg-stop-btn">Stop override</button>
+        </div>
+        <div class="settings-text-hint hidden" id="weatherbg-active-hint"></div>
+        <div class="settings-schedule-add-row">
+          <input type="time" id="weatherbg-schedule-time" class="settings-text-input" aria-label="Time to start scheduled weather background" />
+          <button class="settings-add-btn" type="button" id="weatherbg-schedule-add-btn">Schedule</button>
+        </div>
+        <div class="settings-schedule-list" id="weatherbg-schedule-list"></div>
+      </div>
+
+      <div class="settings-section">
         <h2 class="settings-title">Ambient Mode</h2>
         <div class="settings-text-row">
           <span class="settings-text-label">Idle timeout</span>
@@ -495,6 +533,10 @@
         <div class="settings-text-row">
           <span class="settings-text-label">At</span>
           <input type="time" id="auto-bedside-time" class="wakealarm-time-input" aria-label="Automatic Bedside Mode time" />
+        </div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Play sound automatically</span>
+          <button class="settings-switch" id="bedside-auto-sound-toggle" role="switch" aria-checked="true" aria-label="Automatically start the Sound Machine when entering Bedside Mode"></button>
         </div>
       </div>
 

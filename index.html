@@ -44,6 +44,11 @@
     <div class="wallpaper-photo-layer" id="wallpaper-bg-b"></div>
     <div class="wallpaper-scrim"></div>
   </div>
+  <!-- Reading Mode's warm, dark overlay - dims and warms whichever page is
+       showing without taking it over the way Bedside/Ambient Mode do (see
+       setupReadingMode() in script.js). Sits above the weather effect and
+       wallpaper but pointer-events:none, so it's purely visual. -->
+  <div class="reading-mode-overlay hidden" id="reading-mode-overlay" aria-hidden="true"></div>
   <div class="weather-bg" id="weather-bg" aria-hidden="true">
     <div class="weather-moon-glow"></div>
     <div class="weather-sun-glow"></div>
@@ -115,6 +120,9 @@
         <div class="hero-panel-actions">
           <button class="icon-button sticky-note-trigger-btn" id="sticky-note-trigger-btn" type="button" aria-label="Notes">
             <span class="icon-slot" id="sticky-note-trigger-icon" aria-hidden="true"></span>
+          </button>
+          <button class="icon-button reading-mode-trigger-btn" id="reading-mode-trigger-btn" type="button" aria-label="Toggle Reading Mode" aria-pressed="false">
+            <span class="icon-slot" id="reading-mode-trigger-icon" aria-hidden="true"></span>
           </button>
           <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
             <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
@@ -195,6 +203,9 @@
             <button class="notif-clear-btn" id="dnd-toggle-btn" type="button" aria-label="Toggle Do Not Disturb" aria-pressed="false">
               <span class="icon-slot small" id="dnd-toggle-icon" aria-hidden="true"></span>
             </button>
+            <button class="notif-clear-btn" id="focus-toggle-btn" type="button" aria-label="Toggle Focus mode" aria-pressed="false">
+              <span class="icon-slot small" id="focus-toggle-icon" aria-hidden="true"></span>
+            </button>
             <button class="notif-clear-btn" id="privacy-toggle-btn" type="button" aria-label="Toggle notification preview privacy" aria-pressed="false">
               <span class="icon-slot small" id="privacy-toggle-icon" aria-hidden="true"></span>
             </button>
@@ -211,6 +222,9 @@
           <h2 class="card-title">
             <span class="icon-slot small" id="schedule-title-icon" aria-hidden="true"></span>
             <span id="schedule-title-text">Today's Schedule</span>
+            <button class="notif-clear-btn" id="week-view-trigger-btn" type="button" aria-label="View the week">
+              <span class="icon-slot small" id="week-view-trigger-icon" aria-hidden="true"></span>
+            </button>
           </h2>
           <ul class="schedule-list" id="schedule-list">
             <li class="schedule-empty">No events</li>
@@ -289,6 +303,9 @@
             Notifications
             <button class="notif-clear-btn" id="dnd-toggle-btn-lg" type="button" aria-label="Toggle Do Not Disturb" aria-pressed="false">
               <span class="icon-slot small" id="dnd-toggle-icon-lg" aria-hidden="true"></span>
+            </button>
+            <button class="notif-clear-btn" id="focus-toggle-btn-lg" type="button" aria-label="Toggle Focus mode" aria-pressed="false">
+              <span class="icon-slot small" id="focus-toggle-icon-lg" aria-hidden="true"></span>
             </button>
             <button class="notif-clear-btn" id="privacy-toggle-btn-lg" type="button" aria-label="Toggle notification preview privacy" aria-pressed="false">
               <span class="icon-slot small" id="privacy-toggle-icon-lg" aria-hidden="true"></span>
@@ -594,6 +611,13 @@
       </div>
 
       <div class="settings-section">
+        <h2 class="settings-title">Sleep History</h2>
+        <div class="settings-text-hint">How long Bedside Mode ran each night - not sensor-based sleep tracking, just when Bedside Mode was on.</div>
+        <div class="sleep-history-chart" id="sleep-history-chart"></div>
+        <div class="settings-text-hint" id="sleep-history-avg">No Bedside Mode sessions yet this week</div>
+      </div>
+
+      <div class="settings-section">
         <h2 class="settings-title">Home Network</h2>
         <div class="settings-text-row">
           <span class="settings-text-label">Subnet</span>
@@ -644,6 +668,43 @@
         </div>
       </div>
     </section>
+
+    <!-- Page 7: Timer & Stopwatch - deliberately its own page rather than
+         squeezed into the already-packed Clock/Sound Machine page, since a
+         countdown/stopwatch wants real tap targets and a big readable
+         number, not another compressed row. -->
+    <section class="page page-timer" id="page-timer" aria-label="Timer and Stopwatch">
+      <div class="settings-segmented timer-mode-segmented" id="timer-mode-segmented" role="radiogroup" aria-label="Timer or stopwatch">
+        <button class="settings-segment active" type="button" data-mode="timer">Timer</button>
+        <button class="settings-segment" type="button" data-mode="stopwatch">Stopwatch</button>
+      </div>
+
+      <div class="timer-view" id="timer-view">
+        <div class="timer-display" id="timer-display">00:00</div>
+        <div class="timer-presets" id="timer-presets">
+          <button class="timer-preset-btn" type="button" data-minutes="1">1m</button>
+          <button class="timer-preset-btn active" type="button" data-minutes="5">5m</button>
+          <button class="timer-preset-btn" type="button" data-minutes="10">10m</button>
+          <button class="timer-preset-btn" type="button" data-minutes="15">15m</button>
+          <button class="timer-preset-btn" type="button" data-minutes="30">30m</button>
+          <button class="timer-preset-btn" type="button" data-minutes="60">60m</button>
+        </div>
+        <div class="timer-actions">
+          <button class="alarm-action-btn" id="timer-start-btn" type="button">Start</button>
+          <button class="alarm-action-btn timer-secondary-btn" id="timer-reset-btn" type="button">Reset</button>
+        </div>
+      </div>
+
+      <div class="timer-view hidden" id="stopwatch-view">
+        <div class="timer-display" id="stopwatch-display">00:00.0</div>
+        <div class="timer-actions">
+          <button class="alarm-action-btn" id="stopwatch-start-btn" type="button">Start</button>
+          <button class="alarm-action-btn timer-secondary-btn" id="stopwatch-lap-btn" type="button" disabled>Lap</button>
+          <button class="alarm-action-btn timer-secondary-btn" id="stopwatch-reset-btn" type="button">Reset</button>
+        </div>
+        <ul class="stopwatch-laps" id="stopwatch-laps"></ul>
+      </div>
+    </section>
   </div>
 
   <nav class="page-dots" id="page-dots" aria-label="Dashboard pages">
@@ -653,7 +714,34 @@
     <button class="page-dot" data-page="3" aria-label="Clock and Sound Machine"></button>
     <button class="page-dot" data-page="4" aria-label="Wake Alarms"></button>
     <button class="page-dot" data-page="5" aria-label="Settings"></button>
+    <button class="page-dot" data-page="6" aria-label="Timer and Stopwatch"></button>
   </nav>
+
+  <!-- Shared by the DND and Focus toggles (see setupQuickDurationPopover()
+       in script.js) - whichever one was tapped fills in the title and the
+       preset buttons before showing this. One popover, not two, since
+       they're never open at the same time. -->
+  <div class="quick-duration-backdrop hidden" id="quick-duration-backdrop"></div>
+  <div class="quick-duration-popover hidden" id="quick-duration-popover">
+    <div class="quick-duration-header">
+      <span class="quick-duration-title" id="quick-duration-title">Do Not Disturb</span>
+      <button class="sticky-note-editor-close" id="quick-duration-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="quick-duration-options" id="quick-duration-options"></div>
+  </div>
+
+  <!-- Week-ahead glance, opened from either Schedule card's new calendar
+       icon (see setupWeekView() in script.js). Reuses the sticky-note
+       editor's header/close styling for visual consistency with the
+       other two popovers already on this page. -->
+  <div class="week-view-backdrop hidden" id="week-view-backdrop"></div>
+  <div class="week-view-popover hidden" id="week-view-popover">
+    <div class="sticky-note-editor-header">
+      <span class="sticky-note-editor-title">This Week</span>
+      <button class="sticky-note-editor-close" id="week-view-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="week-view-days" id="week-view-days"></div>
+  </div>
 
   <!-- Outside the pager so it covers whichever page is active when an
        alarm fires - see reconcileWakeAlarm() in script.js. -->

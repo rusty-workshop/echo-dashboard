@@ -165,6 +165,9 @@ const ICONS = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01" stroke-width="2.4"/></svg>',
   leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-5 4.5-9 11-10 1 6.5-3 11-11 11"/><path d="M4 20c3-2 5.5-4.5 7-8"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 0-5 5c0 3.5 5 11 5 11s5-7.5 5-11a5 5 0 0 0-5-5z"/><circle cx="12" cy="7" r="2"/></svg>',
+  focus:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
 };
 
 // ---------------------------------------------------------------------------
@@ -1088,6 +1091,126 @@ function setupStickyNote() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Reading Mode - dims and warms whichever page is showing without taking
+// it over, unlike Bedside/Ambient Mode (no photo cycling, no clock
+// takeover, cards stay fully visible). Pure localStorage/CSS, no Aurora
+// involved. Entering Bedside or Ambient Mode exits this automatically
+// (see enterBedsideMode()/enterAmbientMode()) rather than trying to make
+// the three stack sensibly together.
+// ---------------------------------------------------------------------------
+
+const READING_MODE_KEY = "aurora-dashboard:reading-mode";
+let readingModeActive = localStorage.getItem(READING_MODE_KEY) === "true";
+
+function renderReadingMode() {
+  document.body.classList.toggle("reading-mode-active", readingModeActive);
+  byId("reading-mode-trigger-btn")?.setAttribute("aria-pressed", String(readingModeActive));
+}
+
+function exitReadingMode() {
+  if (!readingModeActive) return;
+  readingModeActive = false;
+  localStorage.setItem(READING_MODE_KEY, "false");
+  renderReadingMode();
+}
+
+function setupReadingMode() {
+  setIcon("reading-mode-trigger-icon", "book");
+  renderReadingMode();
+  byId("reading-mode-trigger-btn")?.addEventListener("click", () => {
+    readingModeActive = !readingModeActive;
+    localStorage.setItem(READING_MODE_KEY, String(readingModeActive));
+    renderReadingMode();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sleep time tracking - logs how long each Bedside Mode session ran, shown
+// as a small 7-day chart in Settings. Pure localStorage, no Aurora
+// involved - this is purely "how long was Bedside Mode active," not real
+// sleep-stage tracking (no sensor to base that on anyway). The session
+// start is persisted too, not just held in memory, so a kiosk reload
+// mid-session doesn't silently lose that night's data - endSleepSession()
+// still needs a real exitBedsideMode() call to actually log it, a reload
+// alone just preserves the start time until one happens.
+// ---------------------------------------------------------------------------
+
+const SLEEP_SESSIONS_KEY = "aurora-dashboard:sleep-sessions";
+const SLEEP_SESSION_START_KEY = "aurora-dashboard:sleep-session-start";
+const SLEEP_SESSIONS_MAX = 30;
+
+let sleepSessions = [];
+try {
+  sleepSessions = JSON.parse(localStorage.getItem(SLEEP_SESSIONS_KEY) || "[]");
+} catch (err) {
+  sleepSessions = [];
+}
+let sleepSessionStartAt = Number(localStorage.getItem(SLEEP_SESSION_START_KEY)) || null;
+
+function startSleepSession() {
+  sleepSessionStartAt = Date.now();
+  localStorage.setItem(SLEEP_SESSION_START_KEY, String(sleepSessionStartAt));
+}
+
+function endSleepSession() {
+  if (!sleepSessionStartAt) return;
+  const durationMinutes = Math.round((Date.now() - sleepSessionStartAt) / 60000);
+  if (durationMinutes >= 1) {
+    const dateKey = new Date(sleepSessionStartAt).toLocaleDateString("en-CA", { timeZone: currentTimezone || undefined });
+    sleepSessions = [...sleepSessions, { date: dateKey, durationMinutes }].slice(-SLEEP_SESSIONS_MAX);
+    localStorage.setItem(SLEEP_SESSIONS_KEY, JSON.stringify(sleepSessions));
+  }
+  sleepSessionStartAt = null;
+  localStorage.removeItem(SLEEP_SESSION_START_KEY);
+  renderSleepHistory();
+}
+
+/** Last 7 calendar days, oldest to newest - multiple sessions landing on
+ *  the same night (e.g. exited and re-entered Bedside Mode) sum together
+ *  rather than only keeping the last one. */
+function renderSleepHistory() {
+  const chart = byId("sleep-history-chart");
+  if (!chart) return;
+
+  const byDate = new Map();
+  sleepSessions.forEach((session) => {
+    byDate.set(session.date, (byDate.get(session.date) || 0) + session.durationMinutes);
+  });
+
+  const timeZone = currentTimezone || undefined;
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const dateKey = d.toLocaleDateString("en-CA", { timeZone });
+    const label = d.toLocaleDateString("en-US", { timeZone, weekday: "narrow" });
+    days.push({ label, minutes: byDate.get(dateKey) || 0 });
+  }
+
+  const maxMinutes = Math.max(600, ...days.map((d) => d.minutes)); // scale to at least 10h
+  chart.innerHTML = days
+    .map((d) => {
+      const heightPct = Math.round((d.minutes / maxMinutes) * 100);
+      const hours = Math.floor(d.minutes / 60);
+      const mins = d.minutes % 60;
+      const title = d.minutes ? `${hours}h ${mins}m` : "No data";
+      return `<div class="sleep-bar-col">
+          <div class="sleep-bar" style="height:${heightPct}%" title="${escapeHtml(title)}"></div>
+          <span class="sleep-bar-label">${escapeHtml(d.label)}</span>
+        </div>`;
+    })
+    .join("");
+
+  const nightsWithData = days.filter((d) => d.minutes > 0);
+  const avgMinutes = nightsWithData.length
+    ? Math.round(nightsWithData.reduce((sum, d) => sum + d.minutes, 0) / nightsWithData.length)
+    : 0;
+  setText(
+    "sleep-history-avg",
+    avgMinutes ? `${Math.floor(avgMinutes / 60)}h ${avgMinutes % 60}m average this week` : "No Bedside Mode sessions yet this week"
+  );
+}
+
 /** Not part of /dashboard (it only matters on this page, same reasoning as
  *  GET /notifications/apps) - lazily fetched once the first time the
  *  Settings page is scrolled to (see ensureNotificationAppsLoaded()'s
@@ -1191,6 +1314,7 @@ function updateClock() {
     setWeatherBackground(lastWeatherData.condition, isPastNightWeatherThreshold(timeZone));
   }
   renderWeatherBgActiveHint();
+  checkQuickDurationExpiry();
 }
 
 function startClock() {
@@ -1560,8 +1684,12 @@ function renderNotifications(groups) {
   setIcon("notifications-title-icon", "bell");
   setIcon("notifications-title-icon-lg", "bell");
 
-  const html =
-    !groups || groups.length === 0
+  // Focus mode hides real content regardless of what groups actually
+  // holds - the phone itself is still buzzing normally the whole time,
+  // this is purely what the display shows.
+  const html = focusModeActive
+    ? '<li class="notif-empty">Focus mode - notifications hidden</li>'
+    : !groups || groups.length === 0
       ? '<li class="notif-empty">All clear</li>'
       : groups.map(notificationItemHtml).join("");
 
@@ -1710,12 +1838,175 @@ function renderDnd(dndEnabled) {
 
 let latestDndEnabled = false;
 
-/** Toggles off the *current known* state rather than reading the button's
- *  own visual state at click time - same reasoning as the sound machine's
- *  controls: the next poll always corrects this if Aurora's actual state
- *  ends up different (e.g. DND flipped manually on the phone itself). */
+// ---------------------------------------------------------------------------
+// Quick-duration popover (shared by DND and Focus mode) - both need the
+// same "pick how long, a dashboard-side timer flips it back off
+// automatically" shape, so both grew out of one small popover instead of
+// two near-identical ones. Turning DND/Focus *off* stays a single
+// instant tap on the same button, same as before - the popover only
+// appears when turning one *on*, where "how long" is a real decision.
+// ---------------------------------------------------------------------------
+
+const DND_AUTO_OFF_KEY = "aurora-dashboard:dnd-auto-off-at";
+let dndAutoOffAt = Number(localStorage.getItem(DND_AUTO_OFF_KEY)) || null;
+
+const FOCUS_ACTIVE_KEY = "aurora-dashboard:focus-active";
+const FOCUS_AUTO_OFF_KEY = "aurora-dashboard:focus-auto-off-at";
+let focusModeActive = localStorage.getItem(FOCUS_ACTIVE_KEY) === "true";
+let focusAutoOffAt = Number(localStorage.getItem(FOCUS_AUTO_OFF_KEY)) || null;
+
+/** "Until morning" resolves off the Bedside Mode auto-schedule (see
+ *  autoBedsideTime/autoBedsideEnabled) plus a flat 8-hour sleep offset,
+ *  not literally "whenever the next wake alarm fires" - wake alarms are
+ *  their own independently-editable list, not a single canonical "the"
+ *  wake time to anchor to. Falls back to a flat 7:00 AM when no bedtime
+ *  is set at all. */
+function untilMorningHHMM() {
+  if (!autoBedsideEnabled) return "07:00";
+  const wakeMinutes = (minutesFromHHMM(autoBedsideTime) + 8 * 60) % 1440;
+  return `${String(Math.floor(wakeMinutes / 60)).padStart(2, "0")}:${String(wakeMinutes % 60).padStart(2, "0")}`;
+}
+
+function untilMorningEpoch() {
+  const targetMinutes = minutesFromHHMM(untilMorningHHMM());
+  const nowMinutes = currentMinutesInTimezone(currentTimezone || undefined);
+  const minutesUntil = targetMinutes > nowMinutes ? targetMinutes - nowMinutes : 1440 - nowMinutes + targetMinutes;
+  return Date.now() + minutesUntil * 60 * 1000;
+}
+
+function closeQuickDurationPopover() {
+  byId("quick-duration-popover")?.classList.add("hidden");
+  byId("quick-duration-backdrop")?.classList.add("hidden");
+}
+
+function activateDnd(autoOffAt) {
+  dndAutoOffAt = autoOffAt;
+  if (autoOffAt) localStorage.setItem(DND_AUTO_OFF_KEY, String(autoOffAt));
+  else localStorage.removeItem(DND_AUTO_OFF_KEY);
+  postAction("/dnd/set?enabled=true").then(poll);
+  closeQuickDurationPopover();
+}
+
+function deactivateDnd() {
+  dndAutoOffAt = null;
+  localStorage.removeItem(DND_AUTO_OFF_KEY);
+  postAction("/dnd/set?enabled=false").then(poll);
+}
+
+function openDndPopover() {
+  setText("quick-duration-title", "Do Not Disturb");
+  const options = byId("quick-duration-options");
+  if (!options) return;
+  options.innerHTML = `
+    <button class="quick-duration-option" type="button" data-action="dnd-indefinite">Indefinite</button>
+    <button class="quick-duration-option" type="button" data-action="dnd-1h">1 hour</button>
+    <button class="quick-duration-option" type="button" data-action="dnd-morning">Until ${escapeHtml(formatTimeOfDay(untilMorningHHMM()))}</button>
+    <button class="quick-duration-option quick-duration-cancel" type="button" data-action="close">Cancel</button>
+  `;
+  byId("quick-duration-popover")?.classList.remove("hidden");
+  byId("quick-duration-backdrop")?.classList.remove("hidden");
+}
+
+/** Dashboard-only "hide notification content from the display" - not a
+ *  real phone mute, the phone still buzzes/rings exactly as normal. See
+ *  renderNotifications()'s focusModeActive check for the actual hiding. */
+function activateFocus(minutes) {
+  focusModeActive = true;
+  focusAutoOffAt = Date.now() + minutes * 60 * 1000;
+  localStorage.setItem(FOCUS_ACTIVE_KEY, "true");
+  localStorage.setItem(FOCUS_AUTO_OFF_KEY, String(focusAutoOffAt));
+  renderFocusToggle();
+  renderNotifications(lastNotificationGroups);
+  closeQuickDurationPopover();
+}
+
+function deactivateFocus() {
+  focusModeActive = false;
+  focusAutoOffAt = null;
+  localStorage.setItem(FOCUS_ACTIVE_KEY, "false");
+  localStorage.removeItem(FOCUS_AUTO_OFF_KEY);
+  renderFocusToggle();
+  renderNotifications(lastNotificationGroups);
+}
+
+function openFocusPopover() {
+  setText("quick-duration-title", "Focus Mode");
+  const options = byId("quick-duration-options");
+  if (!options) return;
+  options.innerHTML = `
+    <button class="quick-duration-option" type="button" data-action="focus-30">30 minutes</button>
+    <button class="quick-duration-option" type="button" data-action="focus-1h">1 hour</button>
+    <button class="quick-duration-option" type="button" data-action="focus-2h">2 hours</button>
+    <button class="quick-duration-option quick-duration-cancel" type="button" data-action="close">Cancel</button>
+  `;
+  byId("quick-duration-popover")?.classList.remove("hidden");
+  byId("quick-duration-backdrop")?.classList.remove("hidden");
+}
+
+function renderFocusToggle() {
+  ["focus-toggle-btn", "focus-toggle-btn-lg"].forEach((id) => {
+    byId(id)?.classList.toggle("dnd-active", focusModeActive);
+    byId(id)?.setAttribute("aria-pressed", String(focusModeActive));
+  });
+}
+
+function setupQuickDurationPopover() {
+  byId("quick-duration-close")?.addEventListener("click", closeQuickDurationPopover);
+  byId("quick-duration-backdrop")?.addEventListener("click", closeQuickDurationPopover);
+
+  byId("quick-duration-options")?.addEventListener("click", (event) => {
+    const btn = event.target.closest(".quick-duration-option");
+    if (!btn) return;
+    switch (btn.dataset.action) {
+      case "dnd-indefinite":
+        activateDnd(null);
+        break;
+      case "dnd-1h":
+        activateDnd(Date.now() + 60 * 60 * 1000);
+        break;
+      case "dnd-morning":
+        activateDnd(untilMorningEpoch());
+        break;
+      case "focus-30":
+        activateFocus(30);
+        break;
+      case "focus-1h":
+        activateFocus(60);
+        break;
+      case "focus-2h":
+        activateFocus(120);
+        break;
+      default:
+        closeQuickDurationPopover();
+    }
+  });
+
+  renderFocusToggle();
+  setIcon("focus-toggle-icon", "focus");
+  setIcon("focus-toggle-icon-lg", "focus");
+
+  const toggleFocus = () => (focusModeActive ? deactivateFocus() : openFocusPopover());
+  byId("focus-toggle-btn")?.addEventListener("click", toggleFocus);
+  byId("focus-toggle-btn-lg")?.addEventListener("click", toggleFocus);
+}
+
+/** Checked every clock tick (see updateClock()) - catches a DND/Focus
+ *  preset expiring between /dashboard polls, same pattern as the weather
+ *  background override's own expiry check. */
+function checkQuickDurationExpiry() {
+  if (dndAutoOffAt && Date.now() >= dndAutoOffAt) deactivateDnd();
+  if (focusAutoOffAt && Date.now() >= focusAutoOffAt) deactivateFocus();
+}
+
+/** Tapping DND toggles off the *current known* state instantly, same as
+ *  before, but only when it's already on - turning it on now opens the
+ *  duration popover instead of enabling indefinitely outright, since
+ *  "how long" is worth a beat of intentionality for something that
+ *  silences real phone calls. The next poll always corrects the visual
+ *  state if Aurora's actual state ends up different (e.g. DND flipped
+ *  manually on the phone itself). */
 function setupDndToggle() {
-  const toggle = () => postAction(`/dnd/set?enabled=${!latestDndEnabled}`).then(poll);
+  const toggle = () => (latestDndEnabled ? deactivateDnd() : openDndPopover());
   byId("dnd-toggle-btn")?.addEventListener("click", toggle);
   byId("dnd-toggle-btn-lg")?.addEventListener("click", toggle);
 }
@@ -1746,6 +2037,80 @@ function renderSchedule(events, showsTomorrow) {
   if (list) list.innerHTML = html;
   const listLg = byId("schedule-list-lg");
   if (listLg) listLg.innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// Week view - a popover glance at the next 7 days (see weekCalendar in the
+// /dashboard response, Aurora's CalendarRepository.getWeekEvents), opened
+// from the new calendar icon on the Schedule card. Independent of
+// renderSchedule()'s own today-or-tomorrow window above.
+// ---------------------------------------------------------------------------
+
+let lastWeekCalendar = [];
+
+/** yyyy-MM-dd, built from local Y/M/D directly rather than through
+ *  Date's own ISO-string parsing (`new Date("yyyy-MM-dd")` parses as UTC
+ *  midnight, which can format one day off in a timezone-aware
+ *  toLocaleDateString call) - Aurora computes each day's date the same
+ *  local-calendar way on its own end, so this keeps both sides looking
+ *  at the same day with no timezone math needed at all. */
+function localDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function renderWeekView() {
+  const container = byId("week-view-days");
+  if (!container) return;
+  const todayKey = localDateKey(new Date());
+
+  container.innerHTML = lastWeekCalendar
+    .map((day) => {
+      const [year, month, dayOfMonth] = day.date.split("-").map(Number);
+      const localDate = new Date(year, month - 1, dayOfMonth);
+      const isToday = day.date === todayKey;
+      const weekdayLabel = isToday ? "Today" : localDate.toLocaleDateString("en-US", { weekday: "long" });
+      const monthDayLabel = localDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+      const eventsHtml =
+        !day.events || day.events.length === 0
+          ? '<div class="week-view-empty">No events</div>'
+          : day.events
+              .map((event) => {
+                const time = event.allDay ? "All day" : formatTimeOfDay(event.start);
+                return `<div class="week-view-event">
+                  <span class="week-view-event-time">${escapeHtml(time)}</span>
+                  <span>${escapeHtml(event.title || "Untitled")}</span>
+                </div>`;
+              })
+              .join("");
+
+      return `<div class="week-view-day${isToday ? " is-today" : ""}">
+          <div class="week-view-day-header">
+            <span>${escapeHtml(weekdayLabel)}</span>
+            <span class="week-view-day-date">${escapeHtml(monthDayLabel)}</span>
+          </div>
+          ${eventsHtml}
+        </div>`;
+    })
+    .join("");
+}
+
+function openWeekView() {
+  renderWeekView();
+  byId("week-view-popover")?.classList.remove("hidden");
+  byId("week-view-backdrop")?.classList.remove("hidden");
+}
+
+function closeWeekView() {
+  byId("week-view-popover")?.classList.add("hidden");
+  byId("week-view-backdrop")?.classList.add("hidden");
+}
+
+function setupWeekView() {
+  setIcon("week-view-trigger-icon", "calendar");
+  byId("week-view-trigger-btn")?.addEventListener("click", openWeekView);
+  byId("week-view-close")?.addEventListener("click", closeWeekView);
+  byId("week-view-backdrop")?.addEventListener("click", closeWeekView);
 }
 
 /** The same today/tomorrow-aware first-event field the Morning Briefing
@@ -2077,6 +2442,7 @@ function renderDashboard(data) {
   latestDndEnabled = data.dndEnabled;
   renderDnd(data.dndEnabled);
   renderSchedule(data.calendar, data.calendarShowsTomorrow);
+  lastWeekCalendar = data.weekCalendar || [];
   renderBedsideTomorrow(data);
   renderAlarm(data.nextAlarm);
   renderSoundMachine(data.soundMachine);
@@ -2905,6 +3271,201 @@ function setupWakeAlarmRingingControls() {
 }
 
 // ---------------------------------------------------------------------------
+// Timer & Stopwatch (own page) - dashboard-only, no Aurora involvement.
+// Both track an epoch (when the current run started/will end) and compute
+// elapsed/remaining from Date.now() on every tick, rather than
+// incrementing/decrementing a counter each time the interval fires - that
+// way neither drifts if a tick ever runs late (a throttled tab, a slow
+// frame), since the displayed value is always freshly derived from real
+// wall-clock time.
+// ---------------------------------------------------------------------------
+
+/** A short, fixed-volume beep for the countdown timer finishing - reuses
+ *  the Sound Machine's shared AudioContext (see ensureAudioContext())
+ *  rather than opening a second one, but its own GainNode straight to the
+ *  destination, so muting/lowering the ambient sound doesn't also
+ *  silence the timer alert. */
+function playTimerBeep() {
+  const ctx = ensureAudioContext();
+  const beepGain = ctx.createGain();
+  beepGain.gain.value = 0.25;
+  beepGain.connect(ctx.destination);
+  [0, 0.35, 0.7].forEach((offset) => {
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    osc.connect(beepGain);
+    const startAt = ctx.currentTime + offset;
+    osc.start(startAt);
+    osc.stop(startAt + 0.25);
+  });
+}
+
+function formatClockDisplay(totalSeconds, tenths) {
+  const clamped = Math.max(0, totalSeconds);
+  const seconds = clamped % 60;
+  const minutes = Math.floor(clamped / 60);
+  const hours = Math.floor(minutes / 60);
+  const mm = String(hours > 0 ? minutes % 60 : minutes).padStart(hours > 0 ? 2 : 1, "0");
+  const ss = String(seconds).padStart(2, "0");
+  const base = hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
+  return tenths == null ? base : `${base}.${tenths}`;
+}
+
+let timerDurationSeconds = 300;
+let timerRemainingSeconds = 300;
+let timerEndAt = null;
+let timerHandle = null;
+
+function renderTimerDisplay() {
+  const display = byId("timer-display");
+  if (!display) return;
+  display.textContent = formatClockDisplay(timerRemainingSeconds);
+  display.classList.toggle("timer-running", Boolean(timerHandle));
+  display.classList.toggle("timer-done", timerRemainingSeconds === 0 && !timerHandle && timerEndAt === null);
+}
+
+function stopTimerInterval() {
+  clearInterval(timerHandle);
+  timerHandle = null;
+}
+
+function tickTimer() {
+  timerRemainingSeconds = Math.max(0, Math.round((timerEndAt - Date.now()) / 1000));
+  if (timerRemainingSeconds === 0) {
+    stopTimerInterval();
+    timerEndAt = null;
+    setText("timer-start-btn", "Start");
+    playTimerBeep();
+  }
+  renderTimerDisplay();
+}
+
+function startTimer() {
+  if (timerRemainingSeconds === 0) timerRemainingSeconds = timerDurationSeconds;
+  timerEndAt = Date.now() + timerRemainingSeconds * 1000;
+  timerHandle = setInterval(tickTimer, 250);
+  setText("timer-start-btn", "Pause");
+  renderTimerDisplay();
+}
+
+function pauseTimer() {
+  timerRemainingSeconds = Math.max(0, Math.round((timerEndAt - Date.now()) / 1000));
+  stopTimerInterval();
+  timerEndAt = null;
+  setText("timer-start-btn", "Start");
+  renderTimerDisplay();
+}
+
+function resetTimer() {
+  stopTimerInterval();
+  timerEndAt = null;
+  timerRemainingSeconds = timerDurationSeconds;
+  setText("timer-start-btn", "Start");
+  renderTimerDisplay();
+}
+
+function setupTimer() {
+  renderTimerDisplay();
+
+  byId("timer-presets")?.addEventListener("click", (event) => {
+    const btn = event.target.closest(".timer-preset-btn");
+    if (!btn) return;
+    timerDurationSeconds = Number(btn.dataset.minutes) * 60;
+    resetTimer();
+    byId("timer-presets")
+      ?.querySelectorAll(".timer-preset-btn")
+      .forEach((b) => b.classList.toggle("active", b === btn));
+  });
+
+  byId("timer-start-btn")?.addEventListener("click", () => (timerHandle ? pauseTimer() : startTimer()));
+  byId("timer-reset-btn")?.addEventListener("click", resetTimer);
+}
+
+let stopwatchElapsedMs = 0;
+let stopwatchStartedAt = null;
+let stopwatchHandle = null;
+let stopwatchLaps = [];
+
+function currentStopwatchElapsedMs() {
+  return stopwatchElapsedMs + (stopwatchStartedAt ? Date.now() - stopwatchStartedAt : 0);
+}
+
+function renderStopwatchDisplay() {
+  const display = byId("stopwatch-display");
+  if (!display) return;
+  const ms = currentStopwatchElapsedMs();
+  display.textContent = formatClockDisplay(Math.floor(ms / 1000), Math.floor((ms % 1000) / 100));
+  display.classList.toggle("timer-running", Boolean(stopwatchStartedAt));
+}
+
+function renderStopwatchLaps() {
+  const list = byId("stopwatch-laps");
+  if (!list) return;
+  list.innerHTML = stopwatchLaps
+    .map((lapMs, index) => {
+      const label = formatClockDisplay(Math.floor(lapMs / 1000), Math.floor((lapMs % 1000) / 100));
+      return `<li><span>Lap ${index + 1}</span><span>${escapeHtml(label)}</span></li>`;
+    })
+    .join("");
+}
+
+function setupStopwatch() {
+  renderStopwatchDisplay();
+
+  byId("stopwatch-start-btn")?.addEventListener("click", () => {
+    const lapBtn = byId("stopwatch-lap-btn");
+    if (stopwatchStartedAt) {
+      stopwatchElapsedMs = currentStopwatchElapsedMs();
+      stopwatchStartedAt = null;
+      clearInterval(stopwatchHandle);
+      stopwatchHandle = null;
+      setText("stopwatch-start-btn", "Start");
+      if (lapBtn) lapBtn.disabled = true;
+    } else {
+      stopwatchStartedAt = Date.now();
+      stopwatchHandle = setInterval(renderStopwatchDisplay, 100);
+      setText("stopwatch-start-btn", "Pause");
+      if (lapBtn) lapBtn.disabled = false;
+    }
+    renderStopwatchDisplay();
+  });
+
+  byId("stopwatch-lap-btn")?.addEventListener("click", () => {
+    if (!stopwatchStartedAt) return;
+    stopwatchLaps.push(currentStopwatchElapsedMs());
+    renderStopwatchLaps();
+  });
+
+  byId("stopwatch-reset-btn")?.addEventListener("click", () => {
+    clearInterval(stopwatchHandle);
+    stopwatchHandle = null;
+    stopwatchStartedAt = null;
+    stopwatchElapsedMs = 0;
+    stopwatchLaps = [];
+    setText("stopwatch-start-btn", "Start");
+    const lapBtn = byId("stopwatch-lap-btn");
+    if (lapBtn) lapBtn.disabled = true;
+    renderStopwatchDisplay();
+    renderStopwatchLaps();
+  });
+}
+
+function setupTimerPage() {
+  setupTimer();
+  setupStopwatch();
+
+  const segmented = byId("timer-mode-segmented");
+  segmented?.addEventListener("click", (event) => {
+    const btn = event.target.closest(".settings-segment");
+    if (!btn) return;
+    segmented.querySelectorAll(".settings-segment").forEach((b) => b.classList.toggle("active", b === btn));
+    byId("timer-view")?.classList.toggle("hidden", btn.dataset.mode !== "timer");
+    byId("stopwatch-view")?.classList.toggle("hidden", btn.dataset.mode !== "stopwatch");
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Local cache - shows the last known state immediately on load, and keeps
 // showing it if Aurora becomes unreachable later.
 // ---------------------------------------------------------------------------
@@ -3194,6 +3755,8 @@ async function enterBedsideMode() {
   // this deliberate "going to sleep" mode is active.
   exitAmbientMode();
   clearTimeout(ambientIdleTimer);
+  exitReadingMode();
+  startSleepSession();
 
   byId("bedside-overlay")?.classList.remove("hidden");
   document.body.classList.add("bedside-active");
@@ -3226,6 +3789,7 @@ function exitBedsideMode() {
   document.body.classList.remove("bedside-active");
   resetAmbientIdleTimer();
   postAction("/dnd/set?enabled=false").then(poll);
+  endSleepSession();
 }
 
 function setupBedsideMode() {
@@ -3715,6 +4279,7 @@ function setupWeatherBgSettings() {
 
 async function enterAmbientMode() {
   if (document.body.classList.contains("bedside-active")) return;
+  exitReadingMode();
   await ensureAmbientPhotosLoaded();
 
   byId("ambient-overlay")?.classList.remove("hidden");
@@ -3801,6 +4366,11 @@ function init() {
   setupWakeAlarmRingingControls();
   setupNotificationClearButtons();
   setupDndToggle();
+  setupQuickDurationPopover();
+  setupTimerPage();
+  setupReadingMode();
+  setupWeekView();
+  renderSleepHistory();
   setupPrivacyToggle();
   setupNotificationAppToggles();
   setupRadar();

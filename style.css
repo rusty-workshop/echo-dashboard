@@ -239,6 +239,34 @@ input {
   height: clamp(1.7rem, 3vw, 2.2rem);
 }
 
+/* ---- Reading Mode --------------------------------------------------------
+   Distinct from Bedside/Ambient Mode - dims and warms whichever page is
+   showing without taking over the screen (no photo cycling, no clock
+   takeover, cards stay fully visible and legible). A warm dark radial
+   wash rather than a CSS filter (brightness()/sepia()) on body - this
+   kiosk's WebView has been unreliable with some "modern" filter/
+   backdrop effects before (see the mDNS/:has() lessons elsewhere), and a
+   plain gradient overlay is cheaper and has no such risk. pointer-events:
+   none keeps every card/button underneath fully tappable. */
+.reading-mode-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(40, 22, 8, 0.35), rgba(18, 10, 4, 0.6));
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+body.reading-mode-active .reading-mode-overlay {
+  opacity: 1;
+}
+
+.reading-mode-trigger-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--surface);
+}
+
 .clock-panel {
   display: flex;
   flex-direction: column;
@@ -533,6 +561,149 @@ input {
   display: none;
 }
 
+/* Shared by the DND and Focus toggles (see setupQuickDurationPopover() in
+   script.js) - centered rather than anchored near the triggering button
+   like the sticky-note editor, since this same popover opens from two
+   different buttons in two different card positions (Overview's compact
+   card, the Phone page's -lg one) rather than one fixed spot. */
+.quick-duration-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+}
+
+.quick-duration-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  width: min(18rem, 78vw);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  padding: 0.8em 0.9em;
+  box-shadow: 0 0.8em 2em rgba(0, 0, 0, 0.5);
+}
+
+.quick-duration-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6em;
+}
+
+.quick-duration-title {
+  font-weight: 700;
+  font-size: var(--fs-body);
+}
+
+.quick-duration-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.quick-duration-option {
+  background: var(--surface);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.55em 0.8em;
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-duration-option:active {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.quick-duration-option.quick-duration-cancel {
+  color: var(--accent-danger);
+}
+
+/* ---- Week view popover ------------------------------------------------- */
+
+.week-view-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+}
+
+.week-view-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  width: min(28rem, 88vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  padding: 0.8em 0.9em;
+  box-shadow: 0 0.8em 2em rgba(0, 0, 0, 0.5);
+}
+
+.week-view-popover::-webkit-scrollbar {
+  display: none;
+}
+
+.week-view-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.week-view-day {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 0.5em 0.7em;
+}
+
+.week-view-day-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  font-weight: 700;
+  font-size: var(--fs-body);
+  margin-bottom: 0.2em;
+}
+
+.week-view-day.is-today .week-view-day-header {
+  color: var(--accent);
+}
+
+.week-view-day-date {
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.week-view-event {
+  display: flex;
+  gap: 0.5em;
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  padding: 0.1em 0;
+}
+
+.week-view-event-time {
+  flex: none;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  width: 3.4em;
+}
+
+.week-view-empty {
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+}
+
 .sticky-note-editor-header {
   flex: none;
   display: flex;
@@ -613,6 +784,43 @@ input {
   font-size: var(--fs-caption);
   color: var(--text-tertiary);
   padding: 0.4em 0.1em;
+}
+
+/* ---- Sleep History chart --------------------------------------------------
+   A plain 7-bar chart, height driven by inline style (see
+   renderSleepHistory() in script.js) rather than an actual charting
+   library - seven divs is not a case that needs one. */
+.sleep-history-chart {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5em;
+  height: 6rem;
+  margin: 0.6em 0 0.3em;
+}
+
+.sleep-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 0.3em;
+}
+
+.sleep-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--accent);
+}
+
+.sleep-bar-label {
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
 }
 
 /* The Daily Info page's own copy of the severe alert banner floats the
@@ -2379,6 +2587,111 @@ input {
 .alarm-dismiss-btn {
   background: var(--accent-danger);
   color: var(--bg);
+}
+
+/* ---- Timer & Stopwatch page --------------------------------------------
+   Centered single-column layout, big tabular-nums readout - the whole
+   point of this page is to be readable at a glance from across a room,
+   the same reasoning the main clock uses. .timer-mode-segmented reuses
+   .settings-segmented's look (imported from the Settings page) rather
+   than inventing a second segmented-control style. */
+
+.page-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 3vh, 2rem);
+}
+
+.timer-mode-segmented {
+  width: min(20rem, 70vw);
+}
+
+.timer-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(1rem, 3vh, 1.75rem);
+  width: 100%;
+}
+
+.timer-display {
+  font-size: clamp(3.5rem, 16vw, 6.5rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-display.timer-running {
+  color: var(--accent);
+}
+
+.timer-display.timer-done {
+  color: var(--accent-danger);
+  animation: severe-alert-pulse 1s ease-in-out infinite;
+}
+
+.timer-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em;
+  max-width: 26rem;
+}
+
+.timer-preset-btn {
+  background: var(--surface-elevated);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0.5em 1em;
+  font-family: inherit;
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.timer-preset-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.timer-actions {
+  display: flex;
+  gap: 1em;
+}
+
+.timer-secondary-btn {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.stopwatch-laps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: min(20rem, 70vw);
+  max-height: 9rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.3em;
+}
+
+.stopwatch-laps::-webkit-scrollbar {
+  display: none;
+}
+
+.stopwatch-laps li {
+  display: flex;
+  justify-content: space-between;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-md);
+  padding: 0.4em 0.8em;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
 }
 
 /* ---- Bedside Mode ------------------------------------------------------------

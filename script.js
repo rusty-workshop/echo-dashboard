@@ -1329,23 +1329,41 @@ function renderBatteryWarning(battery, charging) {
   setText("battery-warning-text", `Phone battery at ${battery}% - plug it in`);
 }
 
+// Aurora has no stable alert id (see WeatherAlert.kt - just event/headline/
+// severity), so "which alert" is identified by that pair - good enough
+// since a genuinely new or updated alert always changes at least one of
+// them. Dismissing is per-alert, not "severe alerts in general": once the
+// NWS alert changes or clears and a different one (or none) comes in, the
+// stored key no longer matches and the banner is free to show again.
+const SEVERE_ALERT_DISMISSED_KEY = "aurora-dashboard:severe-alert-dismissed";
+let dismissedSevereAlertKey = localStorage.getItem(SEVERE_ALERT_DISMISSED_KEY) || "";
+let lastSevereAlert = null;
+
+function severeAlertKey(alert) {
+  return alert ? `${alert.event}|${alert.headline}` : "";
+}
+
 /** NWS-sourced severe weather alert (see WeatherAlertRepository on the
  *  Aurora side) - shown on both the Overview and Daily Info pages, unlike
  *  most render* functions which only touch one page's worth of ids, since
  *  this needs to be visible no matter which page is currently swiped to. */
 function renderSevereAlert(alert) {
+  lastSevereAlert = alert;
+  const dismissed = Boolean(alert) && severeAlertKey(alert) === dismissedSevereAlertKey;
+  const shown = dismissed ? null : alert;
+
   [
     { banner: "severe-alert-banner", icon: "severe-alert-icon", event: "severe-alert-event", headline: "severe-alert-headline" },
     { banner: "severe-alert-banner-lg", icon: "severe-alert-icon-lg", event: "severe-alert-event-lg", headline: "severe-alert-headline-lg" }
   ].forEach((ids) => {
     const banner = byId(ids.banner);
     if (!banner) return;
-    banner.classList.toggle("hidden", !alert);
-    if (!alert) return;
+    banner.classList.toggle("hidden", !shown);
+    if (!shown) return;
 
     setIcon(ids.icon, "alertTriangle");
-    setText(ids.event, alert.event);
-    setText(ids.headline, alert.headline);
+    setText(ids.event, shown.event);
+    setText(ids.headline, shown.headline);
   });
 
   // The Overview page's clock/briefing/status-line share a fixed-height
@@ -1353,7 +1371,17 @@ function renderSevereAlert(alert) {
   // and none of them are otherwise height-aware - without this, an active
   // banner pushes the status line past the page's own overflow:hidden
   // edge and it just disappears. See body.has-severe-alert in style.css.
-  document.body.classList.toggle("has-severe-alert", Boolean(alert));
+  document.body.classList.toggle("has-severe-alert", Boolean(shown));
+}
+
+function setupSevereAlertDismiss() {
+  ["severe-alert-dismiss", "severe-alert-dismiss-lg"].forEach((id) => {
+    byId(id)?.addEventListener("click", () => {
+      dismissedSevereAlertKey = severeAlertKey(lastSevereAlert);
+      localStorage.setItem(SEVERE_ALERT_DISMISSED_KEY, dismissedSevereAlertKey);
+      renderSevereAlert(lastSevereAlert);
+    });
+  });
 }
 
 function renderPhone(battery, charging, chargingEtaMinutes) {
@@ -3613,6 +3641,7 @@ function init() {
   setupTempUnitSetting();
   setupProfileSettings();
   setupStickyNote();
+  setupSevereAlertDismiss();
   setupAutoBedsideSetting();
   setupBedsideAutoSoundSetting();
   setupWallpaperSettings();

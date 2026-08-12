@@ -4219,6 +4219,47 @@ body.ambient-active .weather-bg {
   --radius-md: 1.1rem;
 }
 
+/* M3's actual signature isn't the palette, it's the "expressive" motion -
+   a large, slow-breathing tonal wash behind the hero panel, like the
+   dynamic-color wallpaper backdrop stock Android 12+ builds this exact
+   palette from. ::before rather than a real element so it costs nothing
+   in markup and naturally paints behind .hero-panel's real children
+   (pseudo-elements insert first) without needing z-index at all. */
+[data-theme="materialyou"] .hero-panel::before {
+  content: "";
+  position: absolute;
+  top: -25%;
+  right: -25%;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%);
+  pointer-events: none;
+}
+
+@keyframes m3-glow-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+[data-theme="materialyou"] .hero-panel::before {
+  animation: m3-glow-breathe 9s ease-in-out infinite;
+}
+
+/* Cards get an even bigger, more "pill"-like radius than the theme's own
+   already-large default - M3's containers are rounder than almost
+   anything else in Android's design language. */
+[data-theme="materialyou"] .card,
+[data-theme="materialyou"] .panel {
+  border-radius: 1.6rem;
+}
+
 [data-theme="nothingos"] {
   --bg: #000000;
   --surface: #0a0a0a;
@@ -4237,6 +4278,7 @@ body.ambient-active .weather-bg {
 
 [data-theme="nothingos"] .card {
   border: 1px solid var(--divider);
+  background: transparent;
 }
 
 [data-theme="nothingos"] .card-title {
@@ -4245,6 +4287,45 @@ body.ambient-active .weather-bg {
 
 [data-theme="nothingos"] .page-dot.active::before {
   background: #d1223b !important;
+}
+
+/* Nothing's signature red "Glyph" LED, pulsing like a real notification
+   light - a small dot before every card title rather than the plain
+   uppercase label alone. */
+[data-theme="nothingos"] .card-title::before,
+[data-theme="nothingos"] .panel-title::before {
+  content: "";
+  display: inline-block;
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: #d1223b;
+  animation: nothing-glyph-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes nothing-glyph-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 0 rgba(209, 34, 59, 0.5);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0.4em 0.05em rgba(209, 34, 59, 0.5);
+  }
+}
+
+/* A halftone dot-matrix cutout over the big clock digits - Nothing's own
+   glyph typeface is itself built from a dot grid. mask-image degrades
+   gracefully (solid text instead of dotted) on the rare WebView that
+   doesn't support it, so there's no real risk in reaching for it here. */
+[data-theme="nothingos"] .clock-time,
+[data-theme="nothingos"] .clock-time-huge {
+  -webkit-mask-image: radial-gradient(circle, #000 52%, transparent 53%);
+  -webkit-mask-size: 5px 5px;
+  -webkit-mask-repeat: repeat;
+  mask-image: radial-gradient(circle, #000 52%, transparent 53%);
+  mask-size: 5px 5px;
+  mask-repeat: repeat;
 }
 
 [data-theme="pixel"] {
@@ -4260,6 +4341,50 @@ body.ambient-active .weather-bg {
   --shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
   --radius-lg: 1.5rem;
   --radius-md: 1rem;
+}
+
+/* Google's own 4-color dots (the boot animation, the Assistant mic, the
+   old Photos logo) as a small flourish under the clock - the one truly
+   Google-specific visual signature stock Android's own settings/theming
+   UI never actually uses itself. */
+[data-theme="pixel"] .clock-panel::after {
+  content: "";
+  display: block;
+  width: 3.4em;
+  height: 0.55em;
+  margin-top: 0.35em;
+  background:
+    radial-gradient(circle, #4285f4 32%, transparent 33%) 0% 50% / 25% 100% no-repeat,
+    radial-gradient(circle, #ea4335 32%, transparent 33%) 33% 50% / 25% 100% no-repeat,
+    radial-gradient(circle, #fbbc05 32%, transparent 33%) 66% 50% / 25% 100% no-repeat,
+    radial-gradient(circle, #34a853 32%, transparent 33%) 100% 50% / 25% 100% no-repeat;
+  opacity: 0.9;
+}
+
+/* The page-dot indicator cycles through the same 4 colors instead of a
+   single flat accent - each dot's *position* picks its color, not
+   whichever page is active, so the sequence stays stable as you swipe. */
+[data-theme="pixel"] .page-dot:nth-child(4n + 1).active::before {
+  background: #4285f4 !important;
+}
+
+[data-theme="pixel"] .page-dot:nth-child(4n + 2).active::before {
+  background: #ea4335 !important;
+}
+
+[data-theme="pixel"] .page-dot:nth-child(4n + 3).active::before {
+  background: #fbbc05 !important;
+}
+
+[data-theme="pixel"] .page-dot:nth-child(4n + 4).active::before {
+  background: #34a853 !important;
+}
+
+/* A soft expanding ring on press, in place of the shared .icon-button
+   fill-swap - closer to stock Android's own ripple feedback than a hard
+   color change. */
+[data-theme="pixel"] .icon-button:active {
+  box-shadow: 0 0 0 0.5em color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 [data-theme="retrocrt"] {
@@ -4306,6 +4431,41 @@ html[data-theme="retrocrt"]::after {
   );
 }
 
+/* Tube curvature vignette - a real CRT's phosphor is brightest dead
+   center and falls off toward the corners, unlike a flat LCD. Static
+   gradient, same z-index tier as the scanlines, painted first so the
+   scanlines still read on top of it. */
+html[data-theme="retrocrt"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* An occasional brief dip, not a constant strobe - steps(1) gives it a
+   sharp digital snap rather than a smooth fade, closer to a real tube's
+   flicker than a breathing pulse would read. */
+@keyframes crt-flicker {
+  0%, 95%, 100% {
+    opacity: 1;
+  }
+  96% {
+    opacity: 0.9;
+  }
+  97% {
+    opacity: 1;
+  }
+  98% {
+    opacity: 0.94;
+  }
+}
+
+[data-theme="retrocrt"] body {
+  animation: crt-flicker 7s steps(1) infinite;
+}
+
 [data-theme="oledminimal"] {
   --bg: #000000;
   --surface: #000000;
@@ -4325,6 +4485,39 @@ html[data-theme="retrocrt"]::after {
   border: 1px solid var(--divider);
 }
 
+/* This theme's whole identity is restraint - true blacks, no shadow, no
+   decoration - so its one signature touch has to be quiet too: a hairline
+   accent rule under each card title that gently breathes rather than
+   sitting static, the smallest possible sign of life without betraying
+   the minimalism it's built around. */
+[data-theme="oledminimal"] .card-title,
+[data-theme="oledminimal"] .panel-title {
+  position: relative;
+  padding-bottom: 0.35em;
+}
+
+[data-theme="oledminimal"] .card-title::after,
+[data-theme="oledminimal"] .panel-title::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--accent);
+  animation: oled-rule-breathe 6s ease-in-out infinite;
+}
+
+@keyframes oled-rule-breathe {
+  0%, 100% {
+    width: 1.2em;
+    opacity: 0.3;
+  }
+  50% {
+    width: 2.2em;
+    opacity: 0.75;
+  }
+}
+
 [data-theme="catppuccin"] {
   --bg: #1e1e2e;
   --surface: #181825;
@@ -4337,6 +4530,29 @@ html[data-theme="retrocrt"]::after {
   --accent-blue: #89b4fa;
   --divider: rgba(205, 214, 244, 0.1);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --radius-lg: 1.4rem;
+  --radius-md: 0.9rem;
+}
+
+/* Catppuccin's community identity is "cozy" above all - a soft colored
+   glow around every card (mauve, its signature accent) rather than a
+   plain dark shadow, plus a second warm wash behind the hero panel using
+   the palette's blue for a little more color variety than one hue alone. */
+[data-theme="catppuccin"] .card,
+[data-theme="catppuccin"] .panel {
+  box-shadow: 0 0 1.6em color-mix(in srgb, var(--accent) 14%, transparent), var(--shadow);
+}
+
+[data-theme="catppuccin"] .hero-panel::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: -15%;
+  width: 20rem;
+  height: 20rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-blue) 20%, transparent), transparent 72%);
+  pointer-events: none;
 }
 
 [data-theme="nord"] {
@@ -4351,6 +4567,27 @@ html[data-theme="retrocrt"]::after {
   --accent-blue: #5e81ac;
   --divider: rgba(236, 239, 244, 0.1);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --radius-lg: 0.6rem;
+  --radius-md: 0.4rem;
+}
+
+/* Nord's whole palette is arctic light - sharper, more geometric corners
+   than the shared default (already overridden above) plus a faint frost
+   vignette at the screen edges, like looking through a cold window. Same
+   static-gradient-not-backdrop-filter reasoning as the weather
+   condensation effect elsewhere: costs nothing per frame. */
+[data-theme="nord"] .card,
+[data-theme="nord"] .panel {
+  border: 1px solid var(--divider);
+}
+
+html[data-theme="nord"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 58%, rgba(136, 192, 208, 0.1) 100%);
 }
 
 [data-theme="gruvbox"] {
@@ -4367,4 +4604,25 @@ html[data-theme="retrocrt"]::after {
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   --radius-lg: 1rem;
   --radius-md: 0.7rem;
+}
+
+/* Gruvbox's whole appeal is "vintage terminal, warm paper" rather than
+   clinical dark mode - a faint dot-grain texture over everything (a tiny
+   static tile, not an image, so it costs nothing to paint) plus a warm
+   inset highlight on every card standing in for the subtle bevel old
+   terminal chrome had. */
+html[data-theme="gruvbox"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: radial-gradient(circle, #000 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+[data-theme="gruvbox"] .card,
+[data-theme="gruvbox"] .panel {
+  box-shadow: inset 0 0 0 1px rgba(235, 219, 178, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35);
 }

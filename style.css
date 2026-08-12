@@ -201,12 +201,27 @@ input {
   min-height: 0;
 }
 
+/* A real row in the flex column now, not position:absolute over the
+   clock - reserving horizontal padding for it instead (tried first) meant
+   guessing how much width .clock-time actually needs, and guessing wrong
+   either left it overlapping the buttons or wrapping the clock to two
+   lines. A real row costs a little vertical space but needs no guessing:
+   .clock-panel below it always gets the full available width, so the
+   clock is never at risk of wrapping regardless of locale/font/12h-vs-
+   24h text length. */
 .hero-panel-actions {
-  position: absolute;
-  top: 0;
-  right: 0;
+  flex: none;
   display: flex;
+  justify-content: flex-end;
   gap: 0.5em;
+}
+
+/* Smaller than the default .icon-button size specifically in this pair -
+   this row's whole reason for existing is to cost as little of the hero
+   panel's tight vertical budget as possible. */
+.hero-panel-actions .icon-button {
+  width: clamp(1.7rem, 3vw, 2.2rem);
+  height: clamp(1.7rem, 3vw, 2.2rem);
 }
 
 .clock-panel {

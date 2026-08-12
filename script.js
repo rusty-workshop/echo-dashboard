@@ -4029,7 +4029,11 @@ function renderWallpaperPhotoGrid(data) {
   const selectedId = data.wallpaperMode === "single" ? data.wallpaperSinglePhotoId : wallpaperPendingPhotoId;
   grid.innerHTML = ambientPhotoIds
     .map((id) => {
-      const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(id)}`;
+      // &thumb=1 asks Aurora for a small downsampled JPEG instead of the
+      // original camera-resolution file - these buttons only ever render
+      // at ~70px, and decoding N full-size photos at once here was the
+      // main cause of the Settings page lagging in.
+      const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(id)}&thumb=1`;
       const active = id === selectedId;
       return `<button class="settings-photo-thumb${active ? " active" : ""}" type="button" data-photo-id="${escapeHtml(id)}" style="background-image:url('${url}')" aria-label="Select photo"></button>`;
     })
@@ -4045,7 +4049,7 @@ function renderWallpaperSchedule(entries) {
   }
   list.innerHTML = entries
     .map((entry) => {
-      const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(entry.photoId)}`;
+      const url = `${AURORA_BASE_URL}/photos/stream?id=${encodeURIComponent(entry.photoId)}&thumb=1`;
       return `<div class="settings-schedule-row" data-photo-id="${escapeHtml(entry.photoId)}" data-time="${escapeHtml(entry.time)}">
           <span class="settings-photo-thumb" style="background-image:url('${url}')"></span>
           <span class="settings-schedule-time">${escapeHtml(entry.time)}</span>
@@ -4054,6 +4058,14 @@ function renderWallpaperSchedule(entries) {
     })
     .join("");
 }
+
+// Tracks what the grid/schedule list were last built from, so a poll tick
+// that changed nothing about the wallpaper (the overwhelmingly common
+// case) skips rebuilding them entirely - this used to run unconditionally
+// every 30s regardless of which page was visible, tearing down and
+// recreating every thumbnail (and forcing a fresh image decode of each)
+// for no reason.
+let lastWallpaperGridSignature = null;
 
 function renderWallpaperSettings(data) {
   const segmented = byId("wallpaper-mode-segmented");
@@ -4067,6 +4079,16 @@ function renderWallpaperSettings(data) {
   const isScheduled = data.wallpaperMode === "scheduled";
   byId("wallpaper-schedule-add-row")?.classList.toggle("hidden", !isScheduled);
   byId("wallpaper-schedule-list")?.classList.toggle("hidden", !isScheduled);
+
+  const signature = JSON.stringify({
+    mode: data.wallpaperMode,
+    single: data.wallpaperSinglePhotoId,
+    pending: wallpaperPendingPhotoId,
+    schedule: data.wallpaperSchedule,
+    photoIds: ambientPhotoIds,
+  });
+  if (signature === lastWallpaperGridSignature) return;
+  lastWallpaperGridSignature = signature;
 
   // The library may not be loaded yet on the very first render - re-render
   // the grid once it is, rather than blocking renderDashboard on it.

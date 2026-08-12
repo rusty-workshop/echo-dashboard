@@ -201,10 +201,12 @@ input {
   min-height: 0;
 }
 
-.bedside-trigger-btn {
+.hero-panel-actions {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  gap: 0.5em;
 }
 
 .clock-panel {
@@ -416,14 +418,18 @@ input {
   }
 }
 
-/* ---- Sticky note / reminder ------------------------------------------------
-   A short, dashboard-only reminder (see the Settings page's Profile-
-   adjacent Note field) - deliberately its own grid row (see
-   .page-overview's grid-template-rows) rather than shoehorned into the
-   hero-panel's already-tight flex column, which is exactly what caused
-   the severe-alert-banner squeeze bug documented above. Styled distinctly
-   from that banner (accent-tinted, not danger-red) since this is a
-   personal note, not an emergency. */
+/* ---- Sticky notes -----------------------------------------------------------
+   Short dashboard-only reminders - up to STICKY_NOTES_MAX of them (see
+   script.js), managed from a popover opened via the pin icon next to
+   Bedside Mode's trigger in .hero-panel-actions, not Settings, since these
+   are meant to be jotted down and cleared in a couple of taps. The banner
+   itself keeps its own dedicated grid row (see .page-overview's
+   grid-template-rows) rather than being shoehorned into the hero-panel's
+   already-tight flex column, which is exactly what caused the severe-
+   alert-banner squeeze bug documented above - it cycles through whatever
+   notes exist, one at a time, and collapses to zero height when there are
+   none. Styled distinctly from the severe-alert banner (accent-tinted,
+   not danger-red) since this is a personal note, not an emergency. */
 
 .sticky-note-banner {
   display: flex;
@@ -433,6 +439,7 @@ input {
   border-radius: 0.6em;
   background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   color: var(--text-primary);
+  cursor: pointer;
 }
 
 .sticky-note-banner .icon-slot {
@@ -449,6 +456,16 @@ input {
   white-space: nowrap;
 }
 
+.sticky-note-count {
+  flex: none;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 0.15em 0.55em;
+}
+
 .sticky-note-dismiss {
   flex: none;
   background: transparent;
@@ -458,6 +475,118 @@ input {
   line-height: 1;
   padding: 0.1em 0.3em;
   cursor: pointer;
+}
+
+/* Invisible full-screen tap-to-close layer behind the editor popover -
+   not a dimmed modal backdrop, since editing a couple of short notes
+   doesn't call for darkening the whole display like Bedside/Ambient
+   Mode's real full-screen takeovers do. */
+.sticky-note-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+}
+
+.sticky-note-editor {
+  position: fixed;
+  top: 3.4rem;
+  left: 1rem;
+  z-index: 60;
+  width: min(21rem, 82vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  padding: 0.8em 0.9em;
+  box-shadow: 0 0.8em 2em rgba(0, 0, 0, 0.5);
+}
+
+.sticky-note-editor::-webkit-scrollbar {
+  display: none;
+}
+
+.sticky-note-editor-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6em;
+}
+
+.sticky-note-editor-title {
+  font-weight: 700;
+  font-size: var(--fs-body);
+}
+
+.sticky-note-editor-close {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1em 0.3em;
+}
+
+.sticky-note-add-row {
+  flex: none;
+  display: flex;
+  gap: 0.5em;
+  margin-bottom: 0.7em;
+}
+
+.sticky-note-add-row .settings-text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.sticky-note-list {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.sticky-note-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 0.45em 0.7em;
+}
+
+.sticky-note-item-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  overflow-wrap: break-word;
+}
+
+.sticky-note-item-time {
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+}
+
+.sticky-note-item-remove {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1em 0.3em;
+}
+
+.sticky-note-empty {
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+  padding: 0.4em 0.1em;
 }
 
 /* An active banner eats real height from the same fixed-height row the
@@ -2575,6 +2704,20 @@ body.ambient-active {
   opacity: 0.5;
 }
 
+/* Rain and Storm are dense enough (many continuously-falling streak
+   columns, plus Storm's bolts/flash) that sitting in front of the cards
+   like every other condition reads as genuinely obscuring the dashboard,
+   not just "weather on the glass" - the sparser conditions (sun, clouds,
+   fog, snow, stars) never cover enough of the card area at once for that
+   to matter. Dropped below .pager (z-index 1) for just these two, so the
+   streaks/flash still show over the empty wallpaper but not over card
+   content. body.ambient-active below still wins over this via higher
+   specificity - Ambient Mode has no cards to protect. */
+.weather-bg--rain,
+.weather-bg--storm {
+  z-index: 0;
+}
+
 /* Raises the weather effect above .ambient-overlay (z-index 40) only
    while Ambient Mode is active, so it paints over the screensaver's own
    photo crossfade/starfield instead of staying hidden behind it. Scoped
@@ -3502,52 +3645,76 @@ body.ambient-active .weather-bg {
   }
 }
 
-/* Every star is its own hand-placed point within one large tile (280px/
-   240px/360px), the same reasoning as the snow layers above - a small
-   regular tile with one dot per cell reads as a moving grid the moment
-   it repeats. Two colors mixed into the "a" layer (cool white + a faint
-   warm tint) - real starlight isn't monochrome, and a sky that's all one
-   color of dot reads as more artificial than one with a little variation. */
+/* Every star is its own hand-placed point within one large tile, the
+   same reasoning as the snow layers above - a small regular tile with
+   one dot per cell reads as a moving grid the moment it repeats. Two
+   colors mixed in (cool white + a faint warm tint) - real starlight
+   isn't monochrome, and a sky that's all one color of dot reads as more
+   artificial than one with a little variation.
+
+   Six layers, not three - each on its own twinkle duration/delay, so the
+   sky reads as individually-flickering stars rather than 2-3 clusters
+   blinking in unison. A single background-image can only animate one
+   opacity for every dot it contains, so more independent-feeling twinkle
+   means more layers, each with fewer stars - the same star count as
+   before, just split six ways instead of three. */
 .weather-bg--night .weather-stars-a {
   display: block;
   background-image: radial-gradient(circle 1px at 6% 22%, rgba(255, 255, 255, 0.85), transparent),
-    radial-gradient(circle 1px at 19% 63%, rgba(255, 244, 220, 0.6), transparent),
-    radial-gradient(circle 1px at 33% 9%, rgba(255, 255, 255, 0.75), transparent),
     radial-gradient(circle 1px at 41% 48%, rgba(255, 244, 220, 0.55), transparent),
-    radial-gradient(circle 1px at 57% 78%, rgba(255, 255, 255, 0.8), transparent),
-    radial-gradient(circle 1px at 64% 27%, rgba(255, 244, 220, 0.5), transparent),
     radial-gradient(circle 1px at 76% 58%, rgba(255, 255, 255, 0.7), transparent),
-    radial-gradient(circle 1px at 88% 14%, rgba(255, 244, 220, 0.6), transparent),
-    radial-gradient(circle 1px at 93% 68%, rgba(255, 255, 255, 0.78), transparent),
-    radial-gradient(circle 1px at 12% 91%, rgba(255, 255, 255, 0.65), transparent),
-    radial-gradient(circle 1px at 48% 92%, rgba(255, 244, 220, 0.5), transparent),
-    radial-gradient(circle 1px at 81% 88%, rgba(255, 255, 255, 0.7), transparent);
+    radial-gradient(circle 1px at 12% 91%, rgba(255, 255, 255, 0.65), transparent);
   background-size: 280px 280px;
   animation: bg-star-twinkle 5s ease-in-out infinite;
 }
 
-/* Two more star layers on the same shared twinkle keyframe, phase-shifted
-   via negative delays so they pulse out of sync with each other - real
-   starlight doesn't twinkle in unison, and layers pulsing together read
-   as one flat blink rather than a sky. The third layer's sparser, bigger,
-   brighter dots and faster cycle read as "closer" hero stars against the
-   other two's fainter backdrop. */
 .weather-bg--night .weather-stars-b {
   display: block;
-  background-image: radial-gradient(circle 1px at 14% 37%, rgba(210, 225, 255, 0.7), transparent),
-    radial-gradient(circle 1px at 28% 71%, rgba(210, 225, 255, 0.55), transparent),
-    radial-gradient(circle 1px at 46% 16%, rgba(210, 225, 255, 0.65), transparent),
-    radial-gradient(circle 1px at 62% 54%, rgba(210, 225, 255, 0.6), transparent),
-    radial-gradient(circle 1px at 74% 84%, rgba(210, 225, 255, 0.68), transparent),
-    radial-gradient(circle 1px at 85% 29%, rgba(210, 225, 255, 0.58), transparent),
-    radial-gradient(circle 1px at 95% 66%, rgba(210, 225, 255, 0.62), transparent),
-    radial-gradient(circle 1px at 5% 78%, rgba(210, 225, 255, 0.5), transparent);
-  background-size: 240px 240px;
-  animation: bg-star-twinkle 5s ease-in-out infinite;
-  animation-delay: -2.3s;
+  background-image: radial-gradient(circle 1px at 19% 63%, rgba(255, 244, 220, 0.6), transparent),
+    radial-gradient(circle 1px at 57% 78%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(circle 1px at 88% 14%, rgba(255, 244, 220, 0.6), transparent),
+    radial-gradient(circle 1px at 48% 92%, rgba(255, 244, 220, 0.5), transparent);
+  background-size: 280px 280px;
+  animation: bg-star-twinkle 5.4s ease-in-out infinite;
+  animation-delay: -1.7s;
 }
 
 .weather-bg--night .weather-stars-c {
+  display: block;
+  background-image: radial-gradient(circle 1px at 33% 9%, rgba(255, 255, 255, 0.75), transparent),
+    radial-gradient(circle 1px at 64% 27%, rgba(255, 244, 220, 0.5), transparent),
+    radial-gradient(circle 1px at 93% 68%, rgba(255, 255, 255, 0.78), transparent),
+    radial-gradient(circle 1px at 81% 88%, rgba(255, 255, 255, 0.7), transparent);
+  background-size: 280px 280px;
+  animation: bg-star-twinkle 4.6s ease-in-out infinite;
+  animation-delay: -3.1s;
+}
+
+.weather-bg--night .weather-stars-d {
+  display: block;
+  background-image: radial-gradient(circle 1px at 14% 37%, rgba(210, 225, 255, 0.7), transparent),
+    radial-gradient(circle 1px at 46% 16%, rgba(210, 225, 255, 0.65), transparent),
+    radial-gradient(circle 1px at 74% 84%, rgba(210, 225, 255, 0.68), transparent),
+    radial-gradient(circle 1px at 95% 66%, rgba(210, 225, 255, 0.62), transparent);
+  background-size: 240px 240px;
+  animation: bg-star-twinkle 5.2s ease-in-out infinite;
+  animation-delay: -0.8s;
+}
+
+.weather-bg--night .weather-stars-e {
+  display: block;
+  background-image: radial-gradient(circle 1px at 28% 71%, rgba(210, 225, 255, 0.55), transparent),
+    radial-gradient(circle 1px at 62% 54%, rgba(210, 225, 255, 0.6), transparent),
+    radial-gradient(circle 1px at 85% 29%, rgba(210, 225, 255, 0.58), transparent),
+    radial-gradient(circle 1px at 5% 78%, rgba(210, 225, 255, 0.5), transparent);
+  background-size: 240px 240px;
+  animation: bg-star-twinkle 4.8s ease-in-out infinite;
+  animation-delay: -2.4s;
+}
+
+/* Sparser, bigger, brighter "hero" stars read as closer against the
+   other five layers' fainter backdrop. */
+.weather-bg--night .weather-stars-f {
   display: block;
   background-image: radial-gradient(circle 1.4px at 22% 31%, rgba(255, 255, 255, 0.92), transparent),
     radial-gradient(circle 1.4px at 51% 68%, rgba(255, 255, 255, 0.85), transparent),

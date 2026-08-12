@@ -485,6 +485,15 @@ function computeActiveWeatherBgEffect() {
 
 let wallpaperAccentColor = null; // null = no wallpaper photos configured, weather drives the accent as before
 
+// Settings-page override: force a plain black background instead of
+// whatever Aurora's wallpaperMode says, without touching the photo
+// library itself - Ambient Mode's own separate photo layer (see
+// ambient-photo-a/b below) is entirely unaffected. Pure localStorage,
+// same reasoning as the weather background override: a display
+// preference, not something Aurora needs to know about.
+const WALLPAPER_BLACK_KEY = "aurora-dashboard:wallpaper-black";
+let wallpaperForcedBlack = localStorage.getItem(WALLPAPER_BLACK_KEY) === "true";
+
 function rgbToHsl(r, g, b) {
   r /= 255;
   g /= 255;
@@ -902,47 +911,179 @@ function setupAutoBedsideSetting() {
 }
 
 // ---------------------------------------------------------------------------
-// Sticky note / reminder - a short dashboard-only note shown on the
-// Overview page until dismissed. Pure localStorage, no Aurora involved -
-// the text and its dismissed state are tracked separately so reopening
-// Settings still shows what was last typed even after dismissing the
-// banner, and typing a genuinely new note implicitly un-dismisses it.
+// Sticky notes - short dashboard-only reminders shown on the Overview page,
+// one at a time (cycling if there's more than one), until dismissed. Pure
+// localStorage, no Aurora involved. Managed from a popover opened via the
+// pin icon next to Bedside Mode's trigger (see .hero-panel-actions) rather
+// than Settings, since these are meant to be jotted down and cleared in a
+// couple of taps, not buried a few screens deep.
 // ---------------------------------------------------------------------------
 
-const STICKY_NOTE_KEY = "aurora-dashboard:sticky-note";
-const STICKY_NOTE_DISMISSED_KEY = "aurora-dashboard:sticky-note-dismissed";
-let stickyNoteText = localStorage.getItem(STICKY_NOTE_KEY) || "";
-let stickyNoteDismissed = localStorage.getItem(STICKY_NOTE_DISMISSED_KEY) === "true";
+const STICKY_NOTES_KEY = "aurora-dashboard:sticky-notes";
+const STICKY_NOTES_DISMISSED_KEY = "aurora-dashboard:sticky-notes-dismissed";
+const STICKY_NOTES_MAX = 5;
+const STICKY_NOTE_CYCLE_MS = 6000;
+
+let stickyNotes = [];
+try {
+  stickyNotes = JSON.parse(localStorage.getItem(STICKY_NOTES_KEY) || "[]");
+} catch (err) {
+  stickyNotes = [];
+}
+
+// One-time migration from the old single-note format (a plain string under
+// "aurora-dashboard:sticky-note") - only runs if the new list is still
+// empty, so it can never clobber notes already added under the new format.
+if (stickyNotes.length === 0) {
+  const legacyText = (localStorage.getItem("aurora-dashboard:sticky-note") || "").trim();
+  if (legacyText) {
+    stickyNotes = [{ id: `${Date.now()}`, text: legacyText, addedAt: Date.now() }];
+    localStorage.setItem(STICKY_NOTES_KEY, JSON.stringify(stickyNotes));
+  }
+  localStorage.removeItem("aurora-dashboard:sticky-note");
+  localStorage.removeItem("aurora-dashboard:sticky-note-dismissed");
+}
+
+let stickyNotesDismissed = localStorage.getItem(STICKY_NOTES_DISMISSED_KEY) === "true";
+let stickyNoteCycleIndex = 0;
+let stickyNoteCycleHandle = null;
+
+function saveStickyNotes() {
+  localStorage.setItem(STICKY_NOTES_KEY, JSON.stringify(stickyNotes));
+}
 
 function renderStickyNote() {
   const banner = byId("sticky-note-banner");
   if (!banner) return;
-  const show = Boolean(stickyNoteText) && !stickyNoteDismissed;
+  const show = stickyNotes.length > 0 && !stickyNotesDismissed;
   banner.classList.toggle("hidden", !show);
-  if (show) setText("sticky-note-text", stickyNoteText);
+  if (!show) return;
+
+  if (stickyNoteCycleIndex >= stickyNotes.length) stickyNoteCycleIndex = 0;
+  setText("sticky-note-text", stickyNotes[stickyNoteCycleIndex].text);
+
+  const count = byId("sticky-note-count");
+  if (count) {
+    count.classList.toggle("hidden", stickyNotes.length <= 1);
+    count.textContent = `${stickyNoteCycleIndex + 1}/${stickyNotes.length}`;
+  }
+}
+
+/** Runs continuously (harmless no-op while there's 0-1 notes) rather than
+ *  being started/stopped as notes come and go - one fewer piece of state
+ *  to keep in sync with stickyNotes.length. */
+function startStickyNoteCycle() {
+  stickyNoteCycleHandle = setInterval(() => {
+    if (stickyNotes.length <= 1) return;
+    stickyNoteCycleIndex = (stickyNoteCycleIndex + 1) % stickyNotes.length;
+    renderStickyNote();
+  }, STICKY_NOTE_CYCLE_MS);
+}
+
+function timeAgoLabel(ms) {
+  const minutes = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function renderStickyNoteList() {
+  const list = byId("sticky-note-list");
+  if (!list) return;
+  if (stickyNotes.length === 0) {
+    list.innerHTML = '<div class="sticky-note-empty">No notes yet</div>';
+    return;
+  }
+  list.innerHTML = stickyNotes
+    .map(
+      (note) => `<div class="sticky-note-item" data-id="${escapeHtml(note.id)}">
+        <span class="sticky-note-item-text">${escapeHtml(note.text)}</span>
+        <span class="sticky-note-item-time">${escapeHtml(timeAgoLabel(note.addedAt))}</span>
+        <button class="sticky-note-item-remove" type="button" aria-label="Delete note">&times;</button>
+      </div>`
+    )
+    .join("");
+}
+
+function openStickyNoteEditor() {
+  byId("sticky-note-editor")?.classList.remove("hidden");
+  byId("sticky-note-editor-backdrop")?.classList.remove("hidden");
+  renderStickyNoteList();
+  byId("sticky-note-add-input")?.focus();
+}
+
+function closeStickyNoteEditor() {
+  byId("sticky-note-editor")?.classList.add("hidden");
+  byId("sticky-note-editor-backdrop")?.classList.add("hidden");
+}
+
+/** Adding a note always un-dismisses the banner (same "any edit clears a
+ *  dismissal" rule the single-note version had) and jumps the cycle to
+ *  show the note you just wrote, not whatever it happened to be showing. */
+function addStickyNote(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  stickyNotes = [...stickyNotes, { id: `${Date.now()}`, text: trimmed, addedAt: Date.now() }].slice(-STICKY_NOTES_MAX);
+  saveStickyNotes();
+  stickyNotesDismissed = false;
+  localStorage.setItem(STICKY_NOTES_DISMISSED_KEY, "false");
+  stickyNoteCycleIndex = stickyNotes.length - 1;
+  renderStickyNote();
+  renderStickyNoteList();
+}
+
+function removeStickyNote(id) {
+  stickyNotes = stickyNotes.filter((note) => note.id !== id);
+  saveStickyNotes();
+  if (stickyNoteCycleIndex >= stickyNotes.length) stickyNoteCycleIndex = 0;
+  renderStickyNote();
+  renderStickyNoteList();
 }
 
 function setupStickyNote() {
   setIcon("sticky-note-icon", "pin");
+  setIcon("sticky-note-trigger-icon", "pin");
   renderStickyNote();
+  startStickyNoteCycle();
 
-  const input = byId("settings-note-input");
-  if (input) {
-    input.value = stickyNoteText;
-    input.addEventListener("blur", () => {
-      const value = input.value.trim();
-      if (value === stickyNoteText) return;
-      stickyNoteText = value;
-      stickyNoteDismissed = false;
-      localStorage.setItem(STICKY_NOTE_KEY, stickyNoteText);
-      localStorage.setItem(STICKY_NOTE_DISMISSED_KEY, "false");
-      renderStickyNote();
-    });
-  }
+  byId("sticky-note-trigger-btn")?.addEventListener("click", openStickyNoteEditor);
+  byId("sticky-note-editor-close")?.addEventListener("click", closeStickyNoteEditor);
+  byId("sticky-note-editor-backdrop")?.addEventListener("click", closeStickyNoteEditor);
 
-  byId("sticky-note-dismiss")?.addEventListener("click", () => {
-    stickyNoteDismissed = true;
-    localStorage.setItem(STICKY_NOTE_DISMISSED_KEY, "true");
+  // Tapping the banner itself also opens the editor - the dedicated pin
+  // icon is what makes this discoverable with zero notes, but once a note
+  // is showing, tapping straight on it to manage it is the more obvious
+  // gesture.
+  byId("sticky-note-banner")?.addEventListener("click", (event) => {
+    if (event.target.closest(".sticky-note-dismiss")) return;
+    openStickyNoteEditor();
+  });
+
+  const addInput = byId("sticky-note-add-input");
+  const submitNewNote = () => {
+    if (!addInput) return;
+    addStickyNote(addInput.value);
+    addInput.value = "";
+    addInput.focus();
+  };
+  byId("sticky-note-add-btn")?.addEventListener("click", submitNewNote);
+  addInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") submitNewNote();
+  });
+
+  byId("sticky-note-list")?.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest(".sticky-note-item-remove");
+    if (!removeBtn) return;
+    const id = removeBtn.closest(".sticky-note-item")?.dataset.id;
+    if (id) removeStickyNote(id);
+  });
+
+  byId("sticky-note-dismiss")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    stickyNotesDismissed = true;
+    localStorage.setItem(STICKY_NOTES_DISMISSED_KEY, "true");
     renderStickyNote();
   });
 }
@@ -3269,11 +3410,30 @@ function activeScheduledPhotoId(entries) {
   return active.photoId;
 }
 
+/** Hides whatever photo is currently showing and drops the wallpaper-
+ *  driven accent color back to weather-driven - shared by the black-
+ *  background override (below) and by toggling it back off, so turning
+ *  it off doesn't need to wait for the next photo to load before the
+ *  wallpaper looks right again. */
+function clearWallpaperLayers() {
+  byId("wallpaper-bg-a")?.classList.remove("visible");
+  byId("wallpaper-bg-b")?.classList.remove("visible");
+  currentWallpaperPhotoId = null;
+  wallpaperAccentColor = null;
+}
+
 /** Called on every /dashboard poll - applies whichever wallpaper mode
  *  Aurora currently reports, switching cleanly if the mode itself has
  *  changed since the last poll (e.g. stopping the rotation timer once
- *  it's no longer "rotating"). */
+ *  it's no longer "rotating"). The black-background override short-
+ *  circuits all of that - Aurora's own wallpaperMode is left completely
+ *  alone, so turning the override off resumes exactly where it was. */
 async function applyWallpaperMode(data) {
+  if (wallpaperForcedBlack) {
+    stopWallpaperRotation();
+    clearWallpaperLayers();
+    return;
+  }
   if (data.wallpaperMode === "single") {
     stopWallpaperRotation();
     await ensureAmbientPhotosLoaded();
@@ -3419,6 +3579,23 @@ function setupWallpaperSettings() {
     );
     postWallpaperSchedule(entries);
   });
+
+  const blackToggle = byId("wallpaper-black-toggle");
+  if (blackToggle) {
+    blackToggle.setAttribute("aria-checked", String(wallpaperForcedBlack));
+    blackToggle.addEventListener("click", () => {
+      wallpaperForcedBlack = !wallpaperForcedBlack;
+      blackToggle.setAttribute("aria-checked", String(wallpaperForcedBlack));
+      localStorage.setItem(WALLPAPER_BLACK_KEY, String(wallpaperForcedBlack));
+      if (wallpaperForcedBlack) {
+        stopWallpaperRotation();
+        clearWallpaperLayers();
+        if (lastWeatherData) renderWeather(lastWeatherData);
+      } else if (lastWallpaperData) {
+        applyWallpaperMode(lastWallpaperData);
+      }
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

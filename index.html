@@ -71,6 +71,9 @@
     <div class="weather-stars weather-stars-a"></div>
     <div class="weather-stars weather-stars-b"></div>
     <div class="weather-stars weather-stars-c"></div>
+    <div class="weather-stars weather-stars-d"></div>
+    <div class="weather-stars weather-stars-e"></div>
+    <div class="weather-stars weather-stars-f"></div>
     <div class="weather-shooting-star"></div>
     <div class="weather-condensation"></div>
   </div>
@@ -91,12 +94,30 @@
       <div class="sticky-note-banner hidden" id="sticky-note-banner">
         <span class="icon-slot small" id="sticky-note-icon" aria-hidden="true"></span>
         <span class="sticky-note-text" id="sticky-note-text"></span>
+        <span class="sticky-note-count hidden" id="sticky-note-count"></span>
         <button class="sticky-note-dismiss" id="sticky-note-dismiss" type="button" aria-label="Dismiss note">&times;</button>
       </div>
+      <div class="sticky-note-editor-backdrop hidden" id="sticky-note-editor-backdrop"></div>
+      <div class="sticky-note-editor hidden" id="sticky-note-editor">
+        <div class="sticky-note-editor-header">
+          <span class="sticky-note-editor-title">Notes</span>
+          <button class="sticky-note-editor-close" id="sticky-note-editor-close" type="button" aria-label="Close">&times;</button>
+        </div>
+        <div class="sticky-note-add-row">
+          <input type="text" id="sticky-note-add-input" class="settings-text-input" placeholder="Add a note…" maxlength="80" autocomplete="off" aria-label="New note text" />
+          <button class="settings-add-btn" id="sticky-note-add-btn" type="button">Add</button>
+        </div>
+        <div class="sticky-note-list" id="sticky-note-list"></div>
+      </div>
       <section class="hero-panel">
-        <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
-          <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
-        </button>
+        <div class="hero-panel-actions">
+          <button class="icon-button sticky-note-trigger-btn" id="sticky-note-trigger-btn" type="button" aria-label="Notes">
+            <span class="icon-slot" id="sticky-note-trigger-icon" aria-hidden="true"></span>
+          </button>
+          <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
+            <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
+          </button>
+        </div>
         <header class="clock-panel">
           <div class="clock-time" id="clock-time" aria-live="off">--:--</div>
           <div class="clock-date">
@@ -442,10 +463,6 @@
           <span class="settings-text-label">Name</span>
           <input type="text" id="settings-name-input" class="settings-text-input" placeholder="Your name" autocomplete="off" aria-label="Your name" />
         </div>
-        <div class="settings-text-row">
-          <span class="settings-text-label">Note</span>
-          <input type="text" id="settings-note-input" class="settings-text-input" placeholder="Reminder shown on Overview" autocomplete="off" aria-label="Sticky note reminder" />
-        </div>
       </div>
 
       <div class="settings-section">
@@ -466,6 +483,11 @@
           <button class="settings-add-btn" type="button" id="wallpaper-schedule-add-btn">Add</button>
         </div>
         <div class="settings-schedule-list hidden" id="wallpaper-schedule-list"></div>
+        <div class="settings-text-row">
+          <span class="settings-text-label">Solid black background</span>
+          <button class="settings-switch" id="wallpaper-black-toggle" role="switch" aria-checked="false" aria-label="Use a solid black background instead of photos"></button>
+        </div>
+        <div class="settings-text-hint">Overrides Rotate/Single/Schedule above with plain black - your photo library stays untouched for Ambient Mode.</div>
       </div>
 
       <div class="settings-section">

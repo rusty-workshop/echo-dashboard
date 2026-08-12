@@ -174,25 +174,40 @@ input {
 .page-overview {
   display: grid;
   grid-template-columns: minmax(260px, 38%) 1fr;
-  /* Row 1 (auto) is the severe alert banner, row 2 (auto) is the sticky
-     note - both 0-height when hidden (display:none removes them from grid
-     layout entirely), so neither steals space from row 3 when there's
-     nothing to show. Row 3 is the original hero-panel/card-grid pair,
-     still side by side. Both banner rows are now explicitly placed
-     (grid-column/grid-row on each) rather than left to auto-placement,
-     now that there's more than one of them to keep straight. */
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: 1fr;
   gap: clamp(0.75rem, 2vw, 1.5rem);
+  /* Anchors .overview-banners below. */
+  position: relative;
 }
 
-.sticky-note-banner {
-  grid-column: 1;
-  grid-row: 2;
+/* The severe alert banner and sticky note both float here instead of
+   taking their own grid row - an earlier version gave each its own auto
+   row, but that meant appearing at all pushed hero-panel/card-grid's
+   shared row shorter (and both columns' content down with it), since
+   .page's fixed height has nowhere else to give. Floating avoids that
+   entirely: hero-panel and card-grid always get the full row regardless
+   of what's showing here. The trade-off is this briefly covers whatever
+   sits at the very top of both columns while a banner is up (the
+   .hero-panel-actions icon row and the first card row) - acceptable for
+   something meant to be transient and dismissible, unlike a permanent
+   layout shift every time one appears. Flex column stacks whichever of
+   the two is visible; display:none on a hidden banner removes it from
+   this flow, so one banner alone doesn't leave a gap where the other
+   would go. */
+.overview-banners {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
 }
 
 .hero-panel {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 1;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -371,8 +386,6 @@ input {
    urgent, with a slow icon pulse to catch a glance without being frantic. */
 
 .severe-alert-banner {
-  grid-column: 1;
-  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 0.6em;
@@ -438,12 +451,10 @@ input {
    script.js), managed from a popover opened via the pin icon next to
    Bedside Mode's trigger in .hero-panel-actions, not Settings, since these
    are meant to be jotted down and cleared in a couple of taps. The banner
-   itself keeps its own dedicated grid row (see .page-overview's
-   grid-template-rows) rather than being shoehorned into the hero-panel's
-   already-tight flex column, which is exactly what caused the severe-
-   alert-banner squeeze bug documented above - it cycles through whatever
-   notes exist, one at a time, and collapses to zero height when there are
-   none. Styled distinctly from the severe-alert banner (accent-tinted,
+   itself floats over the page rather than taking real layout space (see
+   .overview-banners) - it cycles through whatever notes exist, one at a
+   time, and disappears entirely when there are none. Styled distinctly
+   from the severe-alert banner (accent-tinted,
    not danger-red) since this is a personal note, not an emergency. */
 
 .sticky-note-banner {
@@ -604,42 +615,24 @@ input {
   padding: 0.4em 0.1em;
 }
 
-/* An active banner eats real height from the same fixed-height row the
-   clock/briefing/status-line share (see .page-overview's grid-template-
-   rows comment) - none of those are otherwise height-aware, their
-   clamp()s are all width-driven (vw), so nothing was shrinking to
-   compensate and the status line (last in DOM order) was getting pushed
-   past .page's own overflow:hidden edge and disappearing entirely.
-   Toggled by renderSevereAlert() in script.js via a body class rather
-   than a :has() selector, so this doesn't depend on relational-selector
-   support in this kiosk's (older) WebView. */
-body.has-severe-alert {
-  --fs-clock: clamp(1.6rem, 6vw, 2.4rem);
-  --fs-greeting: clamp(1rem, 2vw, 1.3rem);
-  --fs-briefing: clamp(0.78rem, 1.4vw, 0.92rem);
+/* The Daily Info page's own copy of the severe alert banner floats the
+   same way .overview-banners does on the Overview page, and for the same
+   reason - it used to take a real row ahead of .page-body-split, shrinking
+   the hero-tile's stacked readouts (icon, temp, condition, H/L, sunrise/
+   sunset, rain, AQI, weather details) every time it appeared. Floating
+   here needs no font-size/gap compensation at all, unlike that old
+   approach - .page-body-split always gets the full page height regardless
+   of whether this banner is showing. */
+.page-daily {
+  position: relative;
 }
 
-body.has-severe-alert .clock-panel {
-  gap: 0;
-}
-
-body.has-severe-alert .briefing {
-  gap: 0.15rem;
-}
-
-/* Same squeeze, same fix, on the Daily Info page: its own banner plus
-   the forecast strip and radar panel all compete for the same fixed
-   page height as .hero-tile's stacked readouts (icon, temp, condition,
-   H/L, sunrise/sunset, rain, AQI, weather details). Scoped to
-   .page-daily specifically - the Phone page's hero-tile also uses
-   --fs-hero for its battery %, but never shows this banner, so it has
-   no reason to shrink. */
-body.has-severe-alert .page-daily .hero-value {
-  font-size: clamp(1.8rem, 6vw, 2.8rem);
-}
-
-body.has-severe-alert .page-daily .hero-tile {
-  gap: 0.2rem;
+.page-daily .severe-alert-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
 }
 
 /* ---- Card grid -----------------------------------------------------------
@@ -658,7 +651,7 @@ body.has-severe-alert .page-daily .hero-tile {
 
 .card-grid {
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: clamp(0.5rem, 1.4vw, 1rem);
@@ -1199,12 +1192,11 @@ body.has-severe-alert .page-daily .hero-tile {
 
 /* Daily Info's hero-tile stacks more rows than Phone's (icon, temp,
    condition, H/L, sunrise/sunset, AQI, details) - on the Echo Show's fixed
-   960x480 viewport this overflows the page even with no severe alert
-   active, confirmed live (the weather-details-lg line was clipped at the
-   screen edge). --fs-hero/.icon-slot.xlarge are width-driven (vw) clamps,
-   not height-aware, so they don't shrink on their own - override
-   unconditionally for this page rather than only under
-   body.has-severe-alert, which already layers a further squeeze on top. */
+   960x480 viewport this overflows the page, confirmed live (the
+   weather-details-lg line was clipped at the screen edge).
+   --fs-hero/.icon-slot.xlarge are width-driven (vw) clamps, not
+   height-aware, so they don't shrink on their own - override
+   unconditionally for this page. */
 .page-daily .hero-tile {
   gap: clamp(0.15rem, 0.6vh, 0.35rem);
 }
@@ -3838,27 +3830,23 @@ body.ambient-active .weather-bg {
 
   .page-overview {
     grid-template-columns: 1fr;
-    /* Stacked single column now: alert banner, sticky note, hero-panel,
-       then card-grid, each on their own row instead of hero-panel/
-       card-grid sharing a row. */
-    grid-template-rows: auto auto auto 1fr;
-  }
-
-  .sticky-note-banner {
-    grid-column: 1;
-    grid-row: 2;
+    /* Stacked single column: hero-panel then card-grid, each on their own
+       row instead of sharing one side by side. The alert/sticky-note
+       banners aren't part of this grid at all any more (see
+       .overview-banners) - they float the same way regardless of width. */
+    grid-template-rows: auto 1fr;
   }
 
   .hero-panel {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 1;
     flex-direction: column;
     gap: 0.75rem;
   }
 
   .card-grid {
     grid-column: 1;
-    grid-row: 4;
+    grid-row: 2;
     height: auto;
   }
 

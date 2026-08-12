@@ -41,13 +41,16 @@ however you like, right down to matching your own wallpaper's colors.
   gaplessly via the Web Audio API and played through the display's own
   speakers — control it from the dashboard itself or from the Aurora phone
   app, they stay in sync.
-- **Bedside Mode**: one tap (the moon icon next to the clock) starts rain,
-  dims the display to a comfortable 50% (adjustable live via an on-screen
-  slider), silences the phone (flips Do Not Disturb on, same as the
-  Notifications card's toggle, and back off again on exit), and arms any
-  disabled wake alarms — then summons a dedicated full-screen view with a
-  huge centered clock, tomorrow's first event, and the Sound Machine
-  controls, until you tap the exit button.
+- **Bedside Mode**: one tap (the moon icon next to the clock) starts rain
+  (optional — toggle "Play sound automatically" off in Settings if you'd
+  rather just have the dimming/DND/quiet clock with no sound), dims the
+  display to a comfortable 50% (adjustable live via an on-screen slider),
+  silences the phone (flips Do Not Disturb on, same as the Notifications
+  card's toggle, and back off again on exit), and arms any disabled wake
+  alarms — then summons a dedicated full-screen view with a huge centered
+  clock, tomorrow's first event, and the Sound Machine controls, until you
+  tap the exit button. Can also enter itself automatically at a scheduled
+  time each night, from that same Settings section.
 - **Ambient Mode**: after 30 minutes with no touch (never while Bedside
   Mode is active), a screensaver-style view takes over — huge clock, tiny
   weather line, dimmed — cycling your Aurora-picked photos with a slow
@@ -76,17 +79,27 @@ however you like, right down to matching your own wallpaper's colors.
   Minimal, Catppuccin, Nord, Gruvbox), switchable from the Settings page —
   each swaps palette, typography, shape, and shadow style over the same
   shared layout, no separate frontends to maintain.
-- **Animated weather backgrounds** for all 8 conditions Aurora reports
-  (Clear, Partly Cloudy, Overcast, Fog, Rain, Snow, Thunderstorm, Night),
-  each with its own icon and its own effect - a condition-specific
-  ambient layer in front of every page and the wallpaper alike: rotating
-  sun rays, a sun peeking through drifting clouds, an overcast sky,
-  drifting fog banks with frosted screen edges, raindrops actually
-  running down the glass, gently drifting snow, thunderstorm flashes, or
-  a twinkling, phase-offset starfield at night - like weather happening
-  on the glass in front of the whole display, all CSS, no JS per-frame
-  cost. Automatically absent during Ambient Mode and Bedside Mode, which
-  already own the whole screen.
+- **Animated weather backgrounds**, one of 8 richly layered effects
+  (Clear, Partly Cloudy, Overcast, Fog, Rain, Snow, Thunderstorm, Night)
+  playing in front of every page and the wallpaper alike - a rotating-ray
+  sun with its own lens-flare glint, puffy multi-lobed clouds (an actual
+  unbroken cloud ceiling for Overcast; the sun visibly dims as a cloud
+  passes over it for Partly Cloudy), a milky fog wash with a diffused glow
+  struggling through it, rain that genuinely falls (directional streaks
+  with a slower glass-trickle layer underneath, not symmetric blobs), snow
+  and stars scattered irregularly across three depth layers instead of a
+  repeating tile, real lightning bolt shapes on two independent, unsynced
+  timers, and a moon glow with an occasional shooting star at night. All
+  CSS, no JS per-frame cost. Automatically absent during Ambient Mode and
+  Bedside Mode, which already own the whole screen.
+- **Weather Background override**: from the Settings page, force any of
+  those 8 effects on demand - for 15 minutes up to indefinitely, or "rest
+  of day" - or put one on a recurring daily schedule, independent of
+  what's actually happening outside.
+- **Severe weather alerts**: an active NWS warning for Aurora's location
+  shows as a banner on the Overview and Daily Info pages until it clears -
+  tap the × to dismiss just that alert; a new or changed one still shows
+  even with a prior one dismissed.
 - **Polish animations throughout**: rolling numbers for temperature and
   battery, a filling battery gauge, a weather-icon transition on change, a
   scroll-driven page-transition effect while swiping, and a livelier

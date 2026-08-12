@@ -1506,13 +1506,6 @@ function renderSevereAlert(alert) {
     setText(ids.event, shown.event);
     setText(ids.headline, shown.headline);
   });
-
-  // The Overview page's clock/briefing/status-line share a fixed-height
-  // row with this banner (see .page-overview's grid comment in style.css)
-  // and none of them are otherwise height-aware - without this, an active
-  // banner pushes the status line past the page's own overflow:hidden
-  // edge and it just disappears. See body.has-severe-alert in style.css.
-  document.body.classList.toggle("has-severe-alert", Boolean(shown));
 }
 
 function setupSevereAlertDismiss() {

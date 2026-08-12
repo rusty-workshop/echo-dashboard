@@ -83,19 +83,21 @@
          (see .card-row/.card-notifications/.card-alarm flex-grow in
          style.css). -->
     <section class="page page-overview" id="page-overview" aria-label="Morning Overview">
-      <div class="severe-alert-banner hidden" id="severe-alert-banner" role="alert">
-        <span class="icon-slot small" id="severe-alert-icon" aria-hidden="true"></span>
-        <div class="severe-alert-text">
-          <div class="severe-alert-event" id="severe-alert-event"></div>
-          <div class="severe-alert-headline" id="severe-alert-headline"></div>
+      <div class="overview-banners">
+        <div class="severe-alert-banner hidden" id="severe-alert-banner" role="alert">
+          <span class="icon-slot small" id="severe-alert-icon" aria-hidden="true"></span>
+          <div class="severe-alert-text">
+            <div class="severe-alert-event" id="severe-alert-event"></div>
+            <div class="severe-alert-headline" id="severe-alert-headline"></div>
+          </div>
+          <button class="severe-alert-dismiss" id="severe-alert-dismiss" type="button" aria-label="Dismiss alert">&times;</button>
         </div>
-        <button class="severe-alert-dismiss" id="severe-alert-dismiss" type="button" aria-label="Dismiss alert">&times;</button>
-      </div>
-      <div class="sticky-note-banner hidden" id="sticky-note-banner">
-        <span class="icon-slot small" id="sticky-note-icon" aria-hidden="true"></span>
-        <span class="sticky-note-text" id="sticky-note-text"></span>
-        <span class="sticky-note-count hidden" id="sticky-note-count"></span>
-        <button class="sticky-note-dismiss" id="sticky-note-dismiss" type="button" aria-label="Dismiss note">&times;</button>
+        <div class="sticky-note-banner hidden" id="sticky-note-banner">
+          <span class="icon-slot small" id="sticky-note-icon" aria-hidden="true"></span>
+          <span class="sticky-note-text" id="sticky-note-text"></span>
+          <span class="sticky-note-count hidden" id="sticky-note-count"></span>
+          <button class="sticky-note-dismiss" id="sticky-note-dismiss" type="button" aria-label="Dismiss note">&times;</button>
+        </div>
       </div>
       <div class="sticky-note-editor-backdrop hidden" id="sticky-note-editor-backdrop"></div>
       <div class="sticky-note-editor hidden" id="sticky-note-editor">

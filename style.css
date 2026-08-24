@@ -2555,6 +2555,15 @@ body.reading-mode-active .reading-mode-overlay {
   margin-top: 1em;
 }
 
+/* Only shown when startAlarmVoiceListening() actually found
+   SpeechRecognition support (see script.js) - never claims voice control
+   works when it silently can't. */
+.alarm-voice-hint {
+  margin-top: 1.2em;
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+}
+
 .alarm-action-btn {
   padding: 0.8em 2em;
   border-radius: var(--radius-lg);

@@ -5,6 +5,8 @@
   <!-- Fixed kiosk display: no pinch-zoom, no accidental double-tap zoom. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Aurora Dashboard</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#000000" />
   <script>
     // Applied synchronously, before the stylesheet paints anything, so a
     // saved theme choice never flashes the default look first.
@@ -762,6 +764,7 @@
       </div>
       <button class="alarm-action-btn alarm-dismiss-btn" id="alarm-dismiss-btn" type="button">Dismiss</button>
     </div>
+    <div class="alarm-voice-hint hidden" id="alarm-voice-hint">Or just say "snooze" or "dismiss"</div>
   </div>
 
   <!-- Bedside Mode - outside the pager (like the alarm overlay above) since

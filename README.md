@@ -245,6 +245,11 @@ No build tools, no package manager, no dependencies: just `index.html`,
   setting) and `SpeechRecognition` support, which not every WebView has;
   both fail silently into "just use the buttons/taps" rather than a
   stuck or broken state.
+- **A ringing alarm is easy to hit half-asleep.** Tapping *anywhere* on the
+  ringing overlay snoozes it — no need to aim for a small button in the
+  dark. Dismiss stays a deliberate, separate tap on its own button (also
+  considerably larger and higher-contrast than a normal control), so a
+  stray touch snoozes rather than accidentally killing the alarm outright.
 
 ## Adding a new card
 

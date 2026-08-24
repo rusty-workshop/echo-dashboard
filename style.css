@@ -267,6 +267,12 @@ body.reading-mode-active .reading-mode-overlay {
   color: var(--surface);
 }
 
+.voice-command-btn.listening {
+  background: var(--accent);
+  color: var(--surface);
+  animation: severe-alert-pulse 1.2s ease-in-out infinite;
+}
+
 .clock-panel {
   display: flex;
   flex-direction: column;

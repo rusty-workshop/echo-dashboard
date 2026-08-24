@@ -116,7 +116,6 @@ const AURORA_BASE_URL = resolveAuroraBaseUrl();
 // ---------------------------------------------------------------------------
 
 const ICONS = {
-  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 19v3"/></svg>',
   sunny:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -3261,7 +3260,6 @@ function reconcileWakeAlarm(ringingState) {
     startWakeAlarmSound(ringingState.soundId);
     startAlarmBrightnessRamp();
     showAlarmRingingOverlay(ringingState.label);
-    startAlarmVoiceListening();
     // A ringing alarm needs the full-screen dismiss/snooze overlay visible
     // and audible - staying in Bedside Mode's own dim, quiet view would bury
     // it, so an active bedside session ends automatically the moment an
@@ -3273,7 +3271,6 @@ function reconcileWakeAlarm(ringingState) {
     isAlarmRinging = false;
     stopWakeAlarmSound();
     stopAlarmBrightnessRamp();
-    stopAlarmVoiceListening();
     // Re-evaluate day/night brightness from scratch rather than leaving
     // the screen wherever the ramp left it - if it's still nighttime, this
     // puts it back to the dim level instead of stuck bright post-dismiss.
@@ -3285,273 +3282,15 @@ function reconcileWakeAlarm(ringingState) {
 
 const SNOOZE_DURATION_KEY = "aurora-dashboard:snooze-duration";
 
-/** Shared by the Dismiss button and voice ("dismiss"/"stop") below - both
- *  just tell Aurora, then poll() picks up the resulting !ringing state on
- *  its next round-trip and reconcileWakeAlarm() above tears down the UI. */
+/** Tells Aurora, then poll() picks up the resulting !ringing state on its
+ *  next round-trip and reconcileWakeAlarm() above tears down the UI. */
 function dismissWakeAlarm() {
   postAction("/wakealarms/dismiss").then(poll);
 }
 
-/** Shared by the Snooze button and voice ("snooze") below. */
 function snoozeWakeAlarm() {
   const minutes = byId("alarm-snooze-duration")?.value || "9";
   postAction(`/wakealarms/snooze?minutes=${encodeURIComponent(minutes)}`).then(poll);
-}
-
-// ---------------------------------------------------------------------------
-// Voice Commands - a small, fixed vocabulary ("play rain", "set a timer
-// for 10 minutes", "goodnight", "what's the weather"...) dispatched
-// through one shared table, so the ringing-alarm listener below and the
-// general press-to-talk button (see setupVoiceCommandButton() further
-// down) both understand exactly the same phrases. Deliberately NOT
-// always-on listening - only while an alarm's ringing (continuous,
-// restarts itself) or for the few seconds after tapping the mic button
-// (one-shot) - simpler, more reliable, and this isn't sitting there
-// listening to the room all day. Requires microphone permission actually
-// granted to the kiosk browser app (a device/OS-level setting, not
-// something this page can grant itself) and SpeechRecognition support,
-// which not every WebView has - both fail silently into "just use the
-// buttons/taps," never a stuck state.
-// ---------------------------------------------------------------------------
-
-function speakText(text) {
-  if (typeof window.speechSynthesis === "undefined") return;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-}
-
-// The sound library is fetched from Aurora at runtime (see
-// ensureSoundLibraryLoaded() / soundDisplayNameById above), not a fixed
-// local list - matching "play X" against whatever it actually returned
-// keeps this from drifting out of sync with Aurora's own library. First
-// significant word of each display name is enough to identify it ("play
-// ocean" needn't also say "waves").
-function findVoiceSoundId(heard) {
-  for (const [id, displayName] of soundDisplayNameById) {
-    const firstWord = displayName.toLowerCase().split(" ")[0];
-    if (heard.includes(firstWord)) return id;
-  }
-  return null;
-}
-
-const TIMER_VOICE_MINUTES = new Set([1, 5, 10, 15, 30, 60]);
-const TIMER_VOICE_NUMBER_WORDS = { one: 1, five: 5, ten: 10, fifteen: 15, thirty: 30, sixty: 60 };
-
-/** Only the durations the Timer page's own presets already offer - "set
- *  a timer for 7 minutes" is heard fine but silently ignored rather than
- *  starting an odd one-off duration nothing else in the UI matches. */
-function parseVoiceTimerMinutes(heard) {
-  const digitMatch = heard.match(/(\d+)\s*minute/);
-  if (digitMatch) {
-    const n = Number(digitMatch[1]);
-    return TIMER_VOICE_MINUTES.has(n) ? n : null;
-  }
-  for (const [word, n] of Object.entries(TIMER_VOICE_NUMBER_WORDS)) {
-    if (heard.includes(`${word} minute`)) return n;
-  }
-  return null;
-}
-
-function startVoiceTimer(minutes) {
-  timerDurationSeconds = minutes * 60;
-  resetTimer();
-  startTimer();
-  byId("timer-presets")
-    ?.querySelectorAll(".timer-preset-btn")
-    .forEach((b) => b.classList.toggle("active", Number(b.dataset.minutes) === minutes));
-}
-
-/** Each entry's test() decides both whether it matches AND whether it's
- *  currently applicable (e.g. "snooze" only counts while an alarm's
- *  actually ringing) - a match always runs and always responds, so
- *  there's never an ambiguous "matched the words but did nothing" gap.
- *  Checked in order, most specific/urgent first. */
-const VOICE_COMMANDS = [
-  {
-    test: (heard) => isAlarmRinging && /\bsnooze\b/.test(heard),
-    run: () => {
-      snoozeWakeAlarm();
-      return "Snoozed.";
-    },
-  },
-  {
-    test: (heard) => isAlarmRinging && /\b(dismiss|stop|turn off)\b/.test(heard),
-    run: () => {
-      dismissWakeAlarm();
-      return "Alarm dismissed.";
-    },
-  },
-  {
-    test: (heard) => /\bplay\b/.test(heard) && findVoiceSoundId(heard) !== null,
-    run: async (heard) => {
-      const soundId = findVoiceSoundId(heard);
-      await startLocalPlayback(soundId, 0);
-      await postAction(`/sound/play?id=${encodeURIComponent(soundId)}`);
-      recordRecentSound(soundId);
-      poll();
-      return `Playing ${soundDisplayNameById.get(soundId) || soundId}.`;
-    },
-  },
-  {
-    test: (heard) => /\bstop\b/.test(heard) && /\b(sound|music)\b/.test(heard),
-    run: async () => {
-      stopLocalPlaybackFully();
-      await postAction("/sound/stop");
-      poll();
-      return "Sound off.";
-    },
-  },
-  {
-    test: (heard) => /\btimer\b/.test(heard) && parseVoiceTimerMinutes(heard) !== null,
-    run: (heard) => {
-      const minutes = parseVoiceTimerMinutes(heard);
-      startVoiceTimer(minutes);
-      return `Timer set for ${minutes} minute${minutes === 1 ? "" : "s"}.`;
-    },
-  },
-  {
-    test: (heard) => /\bgood\s*night\b/.test(heard),
-    run: () => {
-      enterBedsideMode();
-      return "Good night.";
-    },
-  },
-  {
-    test: (heard) => /\bwhat('s| is) the time\b|\bwhat time is it\b/.test(heard),
-    run: () => {
-      const shown = byId("clock-time")?.textContent;
-      return shown ? `It's ${shown}.` : null;
-    },
-  },
-  {
-    test: (heard) => /\bweather\b/.test(heard),
-    run: () => {
-      if (!lastWeatherData) return "The weather hasn't loaded yet.";
-      return `${lastWeatherData.condition}, ${displayTemp(lastWeatherData.temperature)} degrees.`;
-    },
-  },
-];
-
-function runVoiceCommand(heard) {
-  for (const command of VOICE_COMMANDS) {
-    if (command.test(heard)) {
-      const confirmation = command.run(heard);
-      Promise.resolve(confirmation).then((text) => {
-        if (text) speakText(text);
-      });
-      return true;
-    }
-  }
-  return false;
-}
-
-// ---- Continuous listening while an alarm is ringing --------------------
-
-let wakeAlarmRecognition = null;
-
-function startAlarmVoiceListening() {
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognitionCtor) return;
-
-  byId("alarm-voice-hint")?.classList.remove("hidden");
-
-  const recognition = new SpeechRecognitionCtor();
-  recognition.continuous = true;
-  recognition.interimResults = false;
-  recognition.lang = "en-US";
-
-  recognition.onresult = (event) => {
-    runVoiceCommand(event.results[event.results.length - 1][0].transcript.toLowerCase());
-  };
-  // A recognition session commonly ends on its own after a pause in
-  // speech, even with continuous:true - restart automatically for as
-  // long as the alarm is still actually ringing, so a moment of silence
-  // doesn't silently stop listening.
-  recognition.onend = () => {
-    if (isAlarmRinging) {
-      try {
-        recognition.start();
-      } catch (err) {
-        // Already starting/started - fine.
-      }
-    }
-  };
-  recognition.onerror = () => {
-    // A denied mic permission or a transient recognizer error - onend
-    // still fires right after this either way, so the restart-while-
-    // ringing logic above already covers retrying.
-  };
-
-  try {
-    recognition.start();
-  } catch (err) {
-    return;
-  }
-  wakeAlarmRecognition = recognition;
-}
-
-function stopAlarmVoiceListening() {
-  byId("alarm-voice-hint")?.classList.add("hidden");
-  if (!wakeAlarmRecognition) return;
-  const recognition = wakeAlarmRecognition;
-  wakeAlarmRecognition = null;
-  recognition.onend = null; // stopping it ourselves - the restart-on-end handler would otherwise immediately restart it
-  try {
-    recognition.stop();
-  } catch (err) {
-    // Already stopped - fine.
-  }
-}
-
-// ---- Press-to-talk, available generally ---------------------------------
-// One-shot: starts listening, stops itself after a single result or a few
-// seconds of silence - never sits there listening beyond that single tap,
-// unlike the continuous ringing-alarm listener above.
-
-let voiceCommandRecognition = null;
-
-function startVoiceCommandListening() {
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognitionCtor || voiceCommandRecognition) return;
-
-  const btn = byId("voice-command-btn");
-  btn?.classList.add("listening");
-
-  const recognition = new SpeechRecognitionCtor();
-  recognition.continuous = false;
-  recognition.interimResults = false;
-  recognition.lang = "en-US";
-
-  recognition.onresult = (event) => {
-    const heard = event.results[0][0].transcript.toLowerCase();
-    if (!runVoiceCommand(heard)) speakText("Sorry, I didn't catch that.");
-  };
-  recognition.onend = () => {
-    btn?.classList.remove("listening");
-    voiceCommandRecognition = null;
-  };
-  recognition.onerror = () => {
-    // onend fires right after - the cleanup above already covers it.
-  };
-
-  try {
-    recognition.start();
-  } catch (err) {
-    btn?.classList.remove("listening");
-    return;
-  }
-  voiceCommandRecognition = recognition;
-}
-
-function setupVoiceCommandButton() {
-  const btn = byId("voice-command-btn");
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognitionCtor) {
-    btn?.classList.add("hidden");
-    return;
-  }
-  setIcon("voice-command-icon", "mic");
-  btn?.addEventListener("click", startVoiceCommandListening);
 }
 
 function setupWakeAlarmRingingControls() {
@@ -4697,7 +4436,6 @@ function init() {
   setupSoundControls();
   setupWakeAlarmForm();
   setupWakeAlarmRingingControls();
-  setupVoiceCommandButton();
   setupNotificationClearButtons();
   setupDndToggle();
   setupQuickDurationPopover();

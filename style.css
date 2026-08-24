@@ -267,12 +267,6 @@ body.reading-mode-active .reading-mode-overlay {
   color: var(--surface);
 }
 
-.voice-command-btn.listening {
-  background: var(--accent);
-  color: var(--surface);
-  animation: severe-alert-pulse 1.2s ease-in-out infinite;
-}
-
 .clock-panel {
   display: flex;
   flex-direction: column;
@@ -2559,15 +2553,6 @@ body.reading-mode-active .reading-mode-overlay {
   align-items: flex-start;
   gap: 1em;
   margin-top: 1em;
-}
-
-/* Only shown when startAlarmVoiceListening() actually found
-   SpeechRecognition support (see script.js) - never claims voice control
-   works when it silently can't. */
-.alarm-voice-hint {
-  margin-top: 1.2em;
-  font-size: var(--fs-caption);
-  color: var(--text-tertiary);
 }
 
 /* Deliberately oversized - this is meant to be hit accurately half-asleep

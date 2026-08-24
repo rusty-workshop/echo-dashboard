@@ -226,25 +226,6 @@ No build tools, no package manager, no dependencies: just `index.html`,
   broken state (an exception on every tick) or a badly degraded WebView,
   not a graceful fix for every possible freeze, since a genuinely
   deadlocked main thread can't run its own watchdog either.
-- **Voice Commands.** A small fixed vocabulary via the browser's built-in
-  `SpeechRecognition` — never always-on listening, only while a Wake Alarm
-  is actually ringing (auto-listens, restarts itself) or for a few
-  seconds after tapping the mic button (hero panel actions, one-shot):
-  - "snooze" / "dismiss" — while an alarm is ringing, same as the buttons.
-  - "play rain" / "ocean" / "white noise" / "pink noise" / "brown noise" /
-    "chime", and "stop the sound" — controls the Sound Machine, matched
-    against whatever Aurora's own sound library actually returned.
-  - "set a timer for 10 minutes" (1/5/10/15/30/60) — starts the Timer.
-  - "goodnight" — enters Bedside Mode.
-  - "what time is it" / "what's the weather" — spoken answers.
-
-  Every recognized command gets a short spoken confirmation ("Playing
-  Rain.", "Timer set for 10 minutes.") via speech synthesis, so it's
-  clear the mic actually heard you correctly. Requires microphone
-  permission granted to the kiosk browser app itself (an OS-level
-  setting) and `SpeechRecognition` support, which not every WebView has;
-  both fail silently into "just use the buttons/taps" rather than a
-  stuck or broken state.
 - **A ringing alarm is easy to hit half-asleep.** Tapping *anywhere* on the
   ringing overlay snoozes it — no need to aim for a small button in the
   dark. Dismiss stays a deliberate, separate tap on its own button (also

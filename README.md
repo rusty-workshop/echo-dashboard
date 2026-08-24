@@ -211,6 +211,28 @@ No build tools, no package manager, no dependencies: just `index.html`,
   before the page paints, so there's no flash of the wrong theme on
   reload) — it's a display preference, not something Aurora needs to know
   about.
+- **PWA basics** (`manifest.json` + `sw.js`): "Add to Home Screen"-installable,
+  and the app shell (`index.html`/`style.css`/`script.js`) is cached so a
+  brief network drop doesn't blank the page — Aurora's own live data still
+  needs the network either way, only the shell that draws it is cached.
+  Note: service workers require `https:` or `http://localhost` and simply
+  don't register under a `file:` origin, which is how this dashboard's
+  real Echo Show deployment loads — there this silently no-ops, harmless
+  either way.
+- **Stale-clock watchdog.** A kiosk display running 24/7 is the one place
+  a silently frozen tab actually matters. Every successful clock tick
+  stamps the time it completed; a separate check every 30s reloads the
+  page if 5 minutes pass with no successful tick — catching a persistent
+  broken state (an exception on every tick) or a badly degraded WebView,
+  not a graceful fix for every possible freeze, since a genuinely
+  deadlocked main thread can't run its own watchdog either.
+- **Voice dismiss/snooze.** While a Wake Alarm is actually ringing, saying
+  "snooze" or "dismiss" works the same as tapping the button, via the
+  browser's built-in `SpeechRecognition` — only listening during that
+  window, not all the time. Requires microphone permission granted to the
+  kiosk browser app itself (an OS-level setting) and `SpeechRecognition`
+  support, which not every WebView has; both fail silently into "just use
+  the buttons" rather than a stuck or broken state.
 
 ## Adding a new card
 

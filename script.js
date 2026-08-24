@@ -3566,6 +3566,19 @@ function setupWakeAlarmRingingControls() {
 
   byId("alarm-dismiss-btn")?.addEventListener("click", dismissWakeAlarm);
   byId("alarm-snooze-btn")?.addEventListener("click", snoozeWakeAlarm);
+
+  // Tap-ANYTHING-to-snooze - the whole point of a ringing alarm is that
+  // you're half-asleep in the dark, exactly the condition under which
+  // aiming for a specific small button is hardest. Dismiss stays a
+  // deliberate, separate tap on its own (much larger, but still distinct)
+  // button, so a stray touch snoozes rather than accidentally killing the
+  // alarm outright. Excludes the dismiss button, snooze button, and
+  // duration picker themselves so this doesn't double-fire alongside
+  // their own click handlers above.
+  byId("alarm-ringing-overlay")?.addEventListener("click", (event) => {
+    if (event.target.closest("#alarm-dismiss-btn, #alarm-snooze-btn, #alarm-snooze-duration")) return;
+    snoozeWakeAlarm();
+  });
 }
 
 // ---------------------------------------------------------------------------

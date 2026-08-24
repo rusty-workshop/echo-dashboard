@@ -2570,12 +2570,17 @@ body.reading-mode-active .reading-mode-overlay {
   color: var(--text-tertiary);
 }
 
+/* Deliberately oversized - this is meant to be hit accurately half-asleep
+   in the dark, not a normal-density UI control. min-width/min-height
+   guarantee a large target even for "Snooze" 's short label. */
 .alarm-action-btn {
-  padding: 0.8em 2em;
+  padding: 1.1em 2.2em;
+  min-width: 9.5rem;
+  min-height: 4.2rem;
   border-radius: var(--radius-lg);
   border: none;
-  font-size: var(--fs-body-lg);
-  font-weight: 600;
+  font-size: var(--fs-display);
+  font-weight: 700;
   cursor: pointer;
 }
 

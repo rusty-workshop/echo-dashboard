@@ -267,6 +267,12 @@ body.reading-mode-active .reading-mode-overlay {
   color: var(--surface);
 }
 
+.morning-briefing-btn.speaking {
+  background: var(--accent);
+  color: var(--surface);
+  animation: severe-alert-pulse 1.2s ease-in-out infinite;
+}
+
 .clock-panel {
   display: flex;
   flex-direction: column;
@@ -823,6 +829,72 @@ body.reading-mode-active .reading-mode-overlay {
   color: var(--text-tertiary);
 }
 
+/* ---- Page 6: Sleep Insights -------------------------------------------------- */
+
+.page-sleep {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.4rem, 1vh, 0.7rem);
+}
+
+.sleep-page-title {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+}
+
+.sleep-stats-row {
+  flex: none;
+  display: flex;
+  gap: 1rem;
+}
+
+.sleep-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2em;
+  padding: 0.5em;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.sleep-stat-value {
+  font-size: var(--fs-display);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sleep-stat-label {
+  font-size: var(--fs-caption);
+  color: var(--text-tertiary);
+}
+
+/* A plain sparkline - 30 thin bars, no per-bar labels (see
+   renderSleepTrend() in script.js) since 30 of those would be unreadable
+   at this width. Same visual language as .sleep-bar above, just thinner. */
+.sleep-trend-chart {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 3.5rem;
+  margin: 0.4em 0 0.2em;
+}
+
+.sleep-trend-bar {
+  flex: 1;
+  min-height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--accent);
+  opacity: 0.85;
+}
+
 /* The Daily Info page's own copy of the severe alert banner floats the
    same way .overview-banners does on the Overview page, and for the same
    reason - it used to take a real row ahead of .page-body-split, shrinking
@@ -1030,6 +1102,44 @@ body.reading-mode-active .reading-mode-overlay {
 
 .weather-rain .icon-slot.small {
   color: inherit;
+}
+
+/* Same shape as .weather-rain (icon + small accent-colored text row), but
+   interactive - the text itself is the "yes, play it" action, with a
+   separate small "x" for "no thanks, not today." */
+.sound-rain-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-caption);
+  color: var(--accent);
+  margin-bottom: 0.6em;
+}
+
+.sound-rain-hint .icon-slot.small {
+  color: inherit;
+}
+
+.sound-rain-hint-text {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.sound-rain-hint-dismiss {
+  background: none;
+  border: none;
+  padding: 0 0.2em;
+  margin-left: auto;
+  font-size: 1.1em;
+  line-height: 1;
+  color: var(--text-tertiary);
+  cursor: pointer;
 }
 
 /* ---- Phone card ----------------------------------------------------------- */
@@ -1442,6 +1552,22 @@ body.reading-mode-active .reading-mode-overlay {
 .weather-range-lg b {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.weather-moon-row {
+  gap: 0.5em;
+}
+
+.night-sky-trigger-btn {
+  margin-left: auto;
+  background: var(--surface-elevated);
+  border: none;
+  color: var(--text-secondary);
+  border-radius: var(--radius-lg);
+  padding: 0.3em 0.8em;
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
 }
 
 .weather-rain-lg {
@@ -4208,6 +4334,113 @@ body.ambient-active .weather-bg {
    the first weather poll resolves - the weather-mood-color behavior is
    intentionally shared across every theme, not something themes opt out
    of. */
+
+/* ---- Night Sky View ------------------------------------------------------
+   Which naked-eye planets and ~40 of the brightest stars are above the
+   horizon right now - a full-screen "summoned overlay, tap anywhere to
+   exit" shape. See currentSkyPositions()/renderNightSkyView() in script.js. */
+
+/* Fixed dark-navy/gold colors rather than var(--bg)/var(--accent) - unlike
+   most of this dashboard's chrome, this view is depicting something real
+   (the actual night sky), so it should look like one regardless of which
+   theme is active, the same reasoning wallpaper photos and weather
+   background effects don't shift with the theme either. */
+.night-sky-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  padding: 1.5em;
+  background: radial-gradient(ellipse at 50% 100%, #0d1526, #030509);
+}
+
+.night-sky-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: var(--fs-body-lg);
+  color: #e8ecf5;
+}
+
+.night-sky-meteor-hint {
+  font-size: var(--fs-caption);
+  color: #ffd873;
+  text-align: center;
+}
+
+.night-sky-chart-wrap {
+  width: min(100%, 34rem);
+}
+
+.night-sky-chart {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.night-sky-horizon-line {
+  stroke: rgba(232, 236, 245, 0.25);
+  stroke-width: 1;
+}
+
+.night-sky-compass-label {
+  fill: rgba(232, 236, 245, 0.5);
+  font-size: 9px;
+}
+
+.night-sky-dot {
+  fill: #ffd873;
+}
+
+.night-sky-dot-label {
+  fill: #e8ecf5;
+  font-size: 9px;
+}
+
+.night-sky-constellation-line {
+  stroke: rgba(232, 236, 245, 0.3);
+  stroke-width: 0.75;
+}
+
+.night-sky-star-dot {
+  fill: #e8ecf5;
+}
+
+.night-sky-star-label {
+  fill: rgba(232, 236, 245, 0.55);
+  font-size: 7px;
+  letter-spacing: 0.02em;
+}
+
+.night-sky-list {
+  width: min(100%, 24rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.night-sky-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  font-size: var(--fs-caption);
+  color: #cfd6e6;
+}
+
+.night-sky-row-name {
+  font-weight: 600;
+  color: #ffd873;
+}
+
+.night-sky-empty {
+  font-size: var(--fs-caption);
+  color: #9aa5b1;
+  text-align: center;
+}
 
 [data-theme="materialyou"] {
   --bg: #1c1b1f;

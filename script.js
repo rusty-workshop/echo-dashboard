@@ -1169,15 +1169,40 @@ function endSleepSession() {
 /** Last 7 calendar days, oldest to newest - multiple sessions landing on
  *  the same night (e.g. exited and re-entered Bedside Mode) sum together
  *  rather than only keeping the last one. */
-function renderSleepHistory() {
-  const chart = byId("sleep-history-chart");
-  if (!chart) return;
-
+/** Same-night sessions summed together (e.g. exited and re-entered Bedside
+ *  Mode) - shared by the 7-day chart, the 30-day trend, and the streak
+ *  count below, so all three agree on what "a night" adds up to. */
+function sleepMinutesByDate() {
   const byDate = new Map();
   sleepSessions.forEach((session) => {
     byDate.set(session.date, (byDate.get(session.date) || 0) + session.durationMinutes);
   });
+  return byDate;
+}
 
+/** Consecutive nights with any recorded session, walking backward from
+ *  today. If today has no session yet (an in-progress night, or just
+ *  hasn't gone to bed), that alone doesn't break an otherwise real streak -
+ *  counting starts from yesterday instead in that case. */
+function computeSleepStreak(byDate) {
+  const timeZone = currentTimezone || undefined;
+  const dateKeyForOffset = (i) => new Date(Date.now() - i * 86400000).toLocaleDateString("en-CA", { timeZone });
+
+  let streak = 0;
+  let offset = byDate.has(dateKeyForOffset(0)) ? 0 : 1;
+  while (byDate.has(dateKeyForOffset(offset))) {
+    streak++;
+    offset++;
+  }
+  return streak;
+}
+
+/** Last 7 calendar days, oldest to newest. */
+function renderSleepHistory() {
+  const chart = byId("sleep-history-chart");
+  if (!chart) return;
+
+  const byDate = sleepMinutesByDate();
   const timeZone = currentTimezone || undefined;
   const days = [];
   for (let i = 6; i >= 0; i--) {
@@ -1205,10 +1230,45 @@ function renderSleepHistory() {
   const avgMinutes = nightsWithData.length
     ? Math.round(nightsWithData.reduce((sum, d) => sum + d.minutes, 0) / nightsWithData.length)
     : 0;
-  setText(
-    "sleep-history-avg",
-    avgMinutes ? `${Math.floor(avgMinutes / 60)}h ${avgMinutes % 60}m average this week` : "No Bedside Mode sessions yet this week"
-  );
+  setText("sleep-stat-avg", avgMinutes ? `${Math.floor(avgMinutes / 60)}h ${avgMinutes % 60}m` : "–");
+  setText("sleep-stat-streak", String(computeSleepStreak(byDate)));
+
+  renderSleepTrend(byDate);
+}
+
+/** Last 30 calendar days, oldest to newest - same data as the 7-day chart
+ *  above (SLEEP_SESSIONS_MAX = 30 is the entire available history, so this
+ *  is everything there is to show), just a plain sparkline with no
+ *  per-bar labels - 30 of those would be unreadable at this width. */
+function renderSleepTrend(byDate) {
+  const chart = byId("sleep-trend-chart");
+  if (!chart) return;
+
+  const timeZone = currentTimezone || undefined;
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const dateKey = d.toLocaleDateString("en-CA", { timeZone });
+    days.push({ dateKey, minutes: byDate.get(dateKey) || 0 });
+  }
+
+  const maxMinutes = Math.max(600, ...days.map((d) => d.minutes));
+  chart.innerHTML = days
+    .map((d) => {
+      const heightPct = Math.round((d.minutes / maxMinutes) * 100);
+      const hours = Math.floor(d.minutes / 60);
+      const mins = d.minutes % 60;
+      const title = d.minutes ? `${d.dateKey}: ${hours}h ${mins}m` : `${d.dateKey}: No data`;
+      return `<div class="sleep-trend-bar" style="height:${heightPct}%" title="${escapeHtml(title)}"></div>`;
+    })
+    .join("");
+}
+
+function setupSleepInsightsPage() {
+  setIcon("sleep-page-title-icon", "moon");
+  byId("see-sleep-insights-btn")?.addEventListener("click", () => {
+    byId("page-sleep")?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  });
 }
 
 /** Not part of /dashboard (it only matters on this page, same reasoning as
@@ -1384,14 +1444,553 @@ function moonPhaseLabel(date) {
 }
 
 // ---------------------------------------------------------------------------
+// Night Sky View - which naked-eye planets (Mercury, Venus, Mars, Jupiter,
+// Saturn) plus ~40 of the brightest stars are actually above the horizon
+// right now, and roughly where. Computed entirely offline from classical
+// Keplerian orbital elements (the standard low-precision method - see Paul
+// Schlyter's widely-used "Computing planetary positions" tutorial), not
+// fetched from any astronomy API - same "no backend" spirit as this
+// dashboard's own moon phase above, and because there's no free, reliable,
+// no-auth astronomy API to depend on anyway.
+//
+// This intentionally skips the small orbital-perturbation correction terms
+// real ephemeris software applies (planets tugging on each other's orbits)
+// - the base two-body ellipse alone is accurate to well under a degree for
+// every body here, over any date this dashboard will realistically run on.
+// That's plenty for "is Jupiter up, and roughly which direction" - this is
+// a bedside decoration, not a telescope pointing tool.
+//
+// Fixed home coordinates rather than Aurora's phone GPS - Aurora's own
+// /dashboard payload doesn't expose raw lat/long (weather arrives already
+// resolved server-side), and this fork's own WeatherConfig fallback uses
+// this same location, so there's no meaningful loss of accuracy here.
+// ---------------------------------------------------------------------------
+
+const HOME_LATITUDE = 30.1588;
+const HOME_LONGITUDE = -81.6206;
+
+const DEG_TO_RAD = Math.PI / 180;
+const RAD_TO_DEG = 180 / Math.PI;
+
+function normalizeDegrees(deg) {
+  let d = deg % 360;
+  if (d < 0) d += 360;
+  return d;
+}
+
+/** Schlyter's "d" - days since 1999 Dec 31, 00:00 UT, the reference epoch
+ *  his orbital-element formulas below are all written against. */
+function schlyterDays(date) {
+  const julianDate = date.getTime() / 86400000 + 2440587.5;
+  return julianDate - 2451543.5;
+}
+
+// One row per body: N=longitude of ascending node, i=inclination,
+// w=argument of perihelion, a=semi-major axis (AU; Earth radii for the
+// Moon), e=eccentricity, M=mean anomaly - each a base value plus a
+// per-day rate, straight from Schlyter's reference tables. The Sun is
+// modeled as an N=i=0 body "orbiting" Earth, which is mathematically
+// equivalent to Earth orbiting the Sun for everything computed below.
+const ORBITAL_ELEMENTS = {
+  sun: {
+    N: [0, 0],
+    i: [0, 0],
+    w: [282.9404, 4.70935e-5],
+    a: [1.0, 0],
+    e: [0.016709, -1.151e-9],
+    M: [356.047, 0.9856002585],
+  },
+  moon: {
+    N: [125.1228, -0.0529538083],
+    i: [5.1454, 0],
+    w: [318.0634, 0.1643573223],
+    a: [60.2666, 0],
+    e: [0.0549, 0],
+    M: [115.3654, 13.0649929509],
+  },
+  mercury: {
+    N: [48.3313, 3.24587e-5],
+    i: [7.0047, 5.0e-8],
+    w: [29.1241, 1.01444e-5],
+    a: [0.387098, 0],
+    e: [0.205635, 5.59e-10],
+    M: [168.6562, 4.0923344368],
+  },
+  venus: {
+    N: [76.6799, 2.4659e-5],
+    i: [3.3946, 2.75e-8],
+    w: [54.891, 1.38374e-5],
+    a: [0.72333, 0],
+    e: [0.006773, -1.302e-9],
+    M: [48.0052, 1.6021302244],
+  },
+  mars: {
+    N: [49.5574, 2.11081e-5],
+    i: [1.8497, -1.78e-8],
+    w: [286.5016, 2.92961e-5],
+    a: [1.523688, 0],
+    e: [0.093405, 2.516e-9],
+    M: [18.6021, 0.5240207766],
+  },
+  jupiter: {
+    N: [100.4542, 2.76854e-5],
+    i: [1.303, -1.557e-7],
+    w: [273.8777, 1.64505e-5],
+    a: [5.20256, 0],
+    e: [0.048498, 4.469e-9],
+    M: [19.895, 0.0830853001],
+  },
+  saturn: {
+    N: [113.6634, 2.3898e-5],
+    i: [2.4886, -1.081e-7],
+    w: [339.3939, 2.97661e-5],
+    a: [9.55475, 0],
+    e: [0.055546, -9.499e-9],
+    M: [316.967, 0.0334442282],
+  },
+};
+
+function elementAt([base, ratePerDay], d) {
+  return base + ratePerDay * d;
+}
+
+/** Solves Kepler's equation (M = E - e*sin(E), all in degrees) for the
+ *  eccentric anomaly E, Newton's method from Schlyter's own starting
+ *  approximation - every eccentricity in ORBITAL_ELEMENTS is well under
+ *  0.21, so this converges in just a few iterations. */
+function eccentricAnomaly(M, e) {
+  const Mrad = M * DEG_TO_RAD;
+  let E = M + e * RAD_TO_DEG * Math.sin(Mrad) * (1 + e * Math.cos(Mrad));
+  for (let i = 0; i < 6; i++) {
+    const Erad = E * DEG_TO_RAD;
+    const delta = (E - e * RAD_TO_DEG * Math.sin(Erad) - M) / (1 - e * Math.cos(Erad));
+    E -= delta;
+    if (Math.abs(delta) < 1e-6) break;
+  }
+  return E;
+}
+
+/** [xh,yh,zh] heliocentric ecliptic rectangular coordinates (AU), plus the
+ *  same position in [r, lon] polar form (lon in degrees) - the shared
+ *  first stage for both the Sun (whose "orbit" IS the Earth-Sun vector
+ *  needed to re-center every other body below) and each planet. */
+function heliocentricPosition(bodyKey, d) {
+  const el = ORBITAL_ELEMENTS[bodyKey];
+  const N = elementAt(el.N, d);
+  const i = elementAt(el.i, d);
+  const w = elementAt(el.w, d);
+  const a = elementAt(el.a, d);
+  const e = elementAt(el.e, d);
+  const M = normalizeDegrees(elementAt(el.M, d));
+
+  const E = eccentricAnomaly(M, e);
+  const Erad = E * DEG_TO_RAD;
+  const xv = a * (Math.cos(Erad) - e);
+  const yv = a * (Math.sqrt(1 - e * e) * Math.sin(Erad));
+
+  const r = Math.sqrt(xv * xv + yv * yv);
+  const v = normalizeDegrees(Math.atan2(yv, xv) * RAD_TO_DEG);
+
+  const Nrad = N * DEG_TO_RAD;
+  const irad = i * DEG_TO_RAD;
+  const vwRad = (v + w) * DEG_TO_RAD;
+
+  const xh = r * (Math.cos(Nrad) * Math.cos(vwRad) - Math.sin(Nrad) * Math.sin(vwRad) * Math.cos(irad));
+  const yh = r * (Math.sin(Nrad) * Math.cos(vwRad) + Math.cos(Nrad) * Math.sin(vwRad) * Math.cos(irad));
+  const zh = r * (Math.sin(vwRad) * Math.sin(irad));
+
+  const lon = normalizeDegrees(Math.atan2(yh, xh) * RAD_TO_DEG);
+  return { xh, yh, zh, r, lon };
+}
+
+/** Geocentric ecliptic [lon, lat] (degrees) for any body - the Moon's own
+ *  orbital elements are already geocentric (it orbits Earth), so its
+ *  heliocentric-stage output IS its geocentric position; every other body
+ *  needs the Sun's Earth-relative position added in to re-center from
+ *  "around the Sun" to "around the Earth". */
+function geocentricEclipticPosition(bodyKey, d, sunHelio) {
+  if (bodyKey === "moon" || bodyKey === "sun") {
+    const h = heliocentricPosition(bodyKey, d);
+    const lat = normalizeDegrees(Math.atan2(h.zh, Math.sqrt(h.xh * h.xh + h.yh * h.yh)) * RAD_TO_DEG);
+    return { lon: h.lon, lat: lat > 180 ? lat - 360 : lat };
+  }
+
+  const h = heliocentricPosition(bodyKey, d);
+  const xs = sunHelio.r * Math.cos(sunHelio.lon * DEG_TO_RAD);
+  const ys = sunHelio.r * Math.sin(sunHelio.lon * DEG_TO_RAD);
+  const xg = h.xh + xs;
+  const yg = h.yh + ys;
+  const zg = h.zh;
+
+  const lon = normalizeDegrees(Math.atan2(yg, xg) * RAD_TO_DEG);
+  let lat = Math.atan2(zg, Math.sqrt(xg * xg + yg * yg)) * RAD_TO_DEG;
+  return { lon, lat };
+}
+
+/** Geocentric ecliptic [lon, lat] -> equatorial [ra, dec] (degrees),
+ *  rotating by Earth's axial tilt (the obliquity of the ecliptic). */
+function eclipticToEquatorial(lon, lat, obliquityDeg) {
+  const lonRad = lon * DEG_TO_RAD;
+  const latRad = lat * DEG_TO_RAD;
+  const eclRad = obliquityDeg * DEG_TO_RAD;
+
+  const xeq = Math.cos(lonRad) * Math.cos(latRad);
+  const yeq = Math.sin(lonRad) * Math.cos(latRad) * Math.cos(eclRad) - Math.sin(latRad) * Math.sin(eclRad);
+  const zeq = Math.sin(lonRad) * Math.cos(latRad) * Math.sin(eclRad) + Math.sin(latRad) * Math.cos(eclRad);
+
+  const ra = normalizeDegrees(Math.atan2(yeq, xeq) * RAD_TO_DEG);
+  const dec = Math.atan2(zeq, Math.sqrt(xeq * xeq + yeq * yeq)) * RAD_TO_DEG;
+  return { ra, dec };
+}
+
+/** Equatorial [ra, dec] -> horizontal [alt, az] (degrees) for an observer
+ *  at [latitude, longitude] and Greenwich Mean Sidereal Time gmst
+ *  (degrees) - az is compass convention (0=North, 90=East, 180=South,
+ *  270=West), matching how this gets labeled in the UI. */
+function equatorialToHorizontal(ra, dec, gmstDeg, observerLat, observerLon) {
+  const lst = normalizeDegrees(gmstDeg + observerLon);
+  const ha = normalizeDegrees(lst - ra) * DEG_TO_RAD;
+  const decRad = dec * DEG_TO_RAD;
+  const latRad = observerLat * DEG_TO_RAD;
+
+  const x = Math.cos(ha) * Math.cos(decRad);
+  const y = Math.sin(ha) * Math.cos(decRad);
+  const z = Math.sin(decRad);
+
+  const xhor = x * Math.sin(latRad) - z * Math.cos(latRad);
+  const yhor = y;
+  const zhor = x * Math.cos(latRad) + z * Math.sin(latRad);
+
+  const az = normalizeDegrees(Math.atan2(yhor, xhor) * RAD_TO_DEG + 180);
+  const alt = Math.atan2(zhor, Math.sqrt(xhor * xhor + yhor * yhor)) * RAD_TO_DEG;
+  return { alt, az };
+}
+
+/** {planets, gmst} - alt/az for every body in ORBITAL_ELEMENTS except the
+ *  Sun (that one's only needed internally, as the Earth-Sun vector every
+ *  planet's geocentric position is computed relative to), plus gmst
+ *  itself so visibleStars() below can place fixed stars in the same sky
+ *  without recomputing an identical value. */
+function currentSkyPositions(date, lat = HOME_LATITUDE, lon = HOME_LONGITUDE) {
+  const d = schlyterDays(date);
+  const obliquity = 23.4393 - 3.563e-7 * d;
+
+  const sunHelio = heliocentricPosition("sun", d);
+  // Sun's own mean longitude (Ls = w + M, N=0 for this model) is also
+  // Schlyter's shortcut to Greenwich Mean Sidereal Time at 0h UT - see
+  // GMST0 below.
+  const sunEl = ORBITAL_ELEMENTS.sun;
+  const sunMeanLongitude = normalizeDegrees(elementAt(sunEl.w, d) + elementAt(sunEl.M, d));
+
+  const utHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  const gmst = normalizeDegrees(sunMeanLongitude + 180 + utHours * 15);
+
+  const planets = {};
+  for (const key of Object.keys(ORBITAL_ELEMENTS)) {
+    if (key === "sun") continue;
+    const { lon: eclLon, lat: eclLat } = geocentricEclipticPosition(key, d, sunHelio);
+    const { ra, dec } = eclipticToEquatorial(eclLon, eclLat, obliquity);
+    const { alt, az } = equatorialToHorizontal(ra, dec, gmst, lat, lon);
+    planets[key] = { alt, az };
+  }
+  return { planets, gmst };
+}
+
+const COMPASS_DIRECTIONS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+
+function compassDirection(azDeg) {
+  const index = Math.round(normalizeDegrees(azDeg) / 22.5) % 16;
+  return COMPASS_DIRECTIONS[index];
+}
+
+const NIGHT_SKY_BODY_LABELS = {
+  moon: "Moon",
+  mercury: "Mercury",
+  venus: "Venus",
+  mars: "Mars",
+  jupiter: "Jupiter",
+  saturn: "Saturn",
+};
+
+// ~40 of the brightest, most recognizable stars (J2000 RA/Dec in degrees,
+// apparent magnitude - lower is brighter), grouped into a dozen easy-to-spot
+// constellations. Fixed stars don't need orbital elements the way planets
+// do - their RA/Dec barely shifts on human timescales - so this reuses
+// equatorialToHorizontal() directly with the same gmst currentSkyPositions()
+// already computes once per render, rather than needing any new math.
+const STAR_CATALOG = [
+  // Ursa Major (Big Dipper)
+  { name: "Dubhe", con: "Ursa Major", ra: 165.93, dec: 61.75, mag: 1.79 },
+  { name: "Merak", con: "Ursa Major", ra: 165.46, dec: 56.38, mag: 2.37 },
+  { name: "Phecda", con: "Ursa Major", ra: 178.46, dec: 53.69, mag: 2.44 },
+  { name: "Megrez", con: "Ursa Major", ra: 183.86, dec: 57.03, mag: 3.31 },
+  { name: "Alioth", con: "Ursa Major", ra: 193.51, dec: 55.96, mag: 1.77 },
+  { name: "Mizar", con: "Ursa Major", ra: 200.98, dec: 54.93, mag: 2.23 },
+  { name: "Alkaid", con: "Ursa Major", ra: 206.89, dec: 49.31, mag: 1.86 },
+  // Ursa Minor
+  { name: "Polaris", con: "Ursa Minor", ra: 37.95, dec: 89.26, mag: 1.98 },
+  // Orion
+  { name: "Betelgeuse", con: "Orion", ra: 88.79, dec: 7.41, mag: 0.5 },
+  { name: "Rigel", con: "Orion", ra: 78.63, dec: -8.2, mag: 0.13 },
+  { name: "Bellatrix", con: "Orion", ra: 81.28, dec: 6.35, mag: 1.64 },
+  { name: "Mintaka", con: "Orion", ra: 83.0, dec: -0.3, mag: 2.23 },
+  { name: "Alnilam", con: "Orion", ra: 84.05, dec: -1.2, mag: 1.69 },
+  { name: "Alnitak", con: "Orion", ra: 85.19, dec: -1.94, mag: 1.74 },
+  { name: "Saiph", con: "Orion", ra: 86.94, dec: -9.67, mag: 2.06 },
+  // Cassiopeia
+  { name: "Schedar", con: "Cassiopeia", ra: 10.13, dec: 56.54, mag: 2.24 },
+  { name: "Caph", con: "Cassiopeia", ra: 2.29, dec: 59.15, mag: 2.28 },
+  { name: "Gamma Cas", con: "Cassiopeia", ra: 14.18, dec: 60.72, mag: 2.47 },
+  { name: "Ruchbah", con: "Cassiopeia", ra: 21.45, dec: 60.24, mag: 2.68 },
+  { name: "Segin", con: "Cassiopeia", ra: 28.6, dec: 63.67, mag: 3.35 },
+  // Leo
+  { name: "Regulus", con: "Leo", ra: 152.09, dec: 11.97, mag: 1.35 },
+  { name: "Algieba", con: "Leo", ra: 154.99, dec: 19.84, mag: 2.08 },
+  { name: "Zosma", con: "Leo", ra: 168.53, dec: 20.52, mag: 2.56 },
+  { name: "Chertan", con: "Leo", ra: 168.56, dec: 15.43, mag: 3.34 },
+  { name: "Denebola", con: "Leo", ra: 177.26, dec: 14.57, mag: 2.14 },
+  // Cygnus (Northern Cross)
+  { name: "Deneb", con: "Cygnus", ra: 310.36, dec: 45.28, mag: 1.25 },
+  { name: "Sadr", con: "Cygnus", ra: 305.56, dec: 40.26, mag: 2.23 },
+  { name: "Gienah Cygni", con: "Cygnus", ra: 315.13, dec: 33.97, mag: 2.46 },
+  { name: "Delta Cyg", con: "Cygnus", ra: 296.24, dec: 45.13, mag: 2.87 },
+  { name: "Albireo", con: "Cygnus", ra: 292.68, dec: 27.96, mag: 3.18 },
+  // Scorpius
+  { name: "Antares", con: "Scorpius", ra: 247.35, dec: -26.43, mag: 1.06 },
+  { name: "Dschubba", con: "Scorpius", ra: 240.08, dec: -22.62, mag: 2.29 },
+  { name: "Graffias", con: "Scorpius", ra: 241.36, dec: -19.81, mag: 2.56 },
+  { name: "Sargas", con: "Scorpius", ra: 264.33, dec: -43.0, mag: 1.86 },
+  { name: "Shaula", con: "Scorpius", ra: 263.4, dec: -37.1, mag: 1.62 },
+  // Single bright stars, no constellation lines drawn for these
+  { name: "Sirius", con: null, ra: 101.29, dec: -16.72, mag: -1.46 },
+  { name: "Capella", con: null, ra: 79.17, dec: 46.0, mag: 0.08 },
+  { name: "Arcturus", con: null, ra: 213.92, dec: 19.18, mag: -0.05 },
+  { name: "Vega", con: null, ra: 279.23, dec: 38.78, mag: 0.03 },
+  { name: "Aldebaran", con: null, ra: 68.98, dec: 16.51, mag: 0.87 },
+  { name: "Procyon", con: null, ra: 114.83, dec: 5.22, mag: 0.34 },
+  { name: "Altair", con: null, ra: 297.7, dec: 8.87, mag: 0.76 },
+  { name: "Spica", con: null, ra: 201.3, dec: -11.16, mag: 0.98 },
+  { name: "Fomalhaut", con: null, ra: 344.41, dec: -29.62, mag: 1.16 },
+];
+
+// Which named stars connect to sketch each constellation's familiar
+// shape - deliberately simplified to the recognizable "connect the dots"
+// pattern (e.g. the Big Dipper asterism, Orion's belt and shoulders),
+// not the full IAU constellation boundary.
+const CONSTELLATION_LINES = [
+  ["Dubhe", "Merak"], ["Merak", "Phecda"], ["Phecda", "Megrez"], ["Megrez", "Dubhe"],
+  ["Megrez", "Alioth"], ["Alioth", "Mizar"], ["Mizar", "Alkaid"],
+  ["Betelgeuse", "Bellatrix"], ["Bellatrix", "Mintaka"], ["Mintaka", "Alnilam"],
+  ["Alnilam", "Alnitak"], ["Alnitak", "Saiph"], ["Rigel", "Saiph"], ["Rigel", "Mintaka"],
+  ["Betelgeuse", "Alnilam"],
+  ["Caph", "Schedar"], ["Schedar", "Gamma Cas"], ["Gamma Cas", "Ruchbah"], ["Ruchbah", "Segin"],
+  ["Regulus", "Algieba"], ["Algieba", "Zosma"], ["Zosma", "Denebola"], ["Zosma", "Chertan"], ["Chertan", "Regulus"],
+  ["Deneb", "Sadr"], ["Sadr", "Albireo"], ["Delta Cyg", "Sadr"], ["Sadr", "Gienah Cygni"],
+  ["Dschubba", "Graffias"], ["Dschubba", "Antares"], ["Antares", "Sargas"], ["Sargas", "Shaula"],
+];
+
+// Only stars fainter than the naked-eye-friendly cutoff and above the
+// horizon get drawn - the catalog above is already curated to bright,
+// recognizable stars, so this mostly just guards against an unusually
+// permissive future addition rather than filtering much today.
+const STAR_MAGNITUDE_CUTOFF = 3.6;
+
+function visibleStars(gmst, lat = HOME_LATITUDE, lon = HOME_LONGITUDE) {
+  return STAR_CATALOG.map((star) => {
+    const { alt, az } = equatorialToHorizontal(star.ra, star.dec, gmst, lat, lon);
+    return { ...star, alt, az };
+  }).filter((star) => star.alt > 0 && star.mag <= STAR_MAGNITUDE_CUTOFF);
+}
+
+function altitudeDescription(alt) {
+  if (alt >= 60) return "near overhead";
+  if (alt >= 30) return "high";
+  if (alt >= 10) return "partway up";
+  return "low, near the horizon";
+}
+
+/** Star dot radius shrinks with magnitude (fainter = smaller), same idea
+ *  real star charts use - r=2.6 at the brightest end down to r=0.9 at the
+ *  cutoff, clamped so nothing vanishes or overwhelms the fixed-size
+ *  planet dots drawn on top of them. */
+function starDotRadius(mag) {
+  const r = 2.6 - (mag + 1.5) * 0.35;
+  return Math.max(0.9, Math.min(2.6, r));
+}
+
+function renderNightSkyChart(visibleBodies, stars) {
+  const svg = byId("night-sky-chart");
+  if (!svg) return;
+
+  const toX = (az) => (az / 360) * 360;
+  const toY = (alt) => 130 - (Math.max(0, Math.min(90, alt)) / 90) * 120;
+
+  const compassTicks = [
+    { label: "N", az: 0 },
+    { label: "E", az: 90 },
+    { label: "S", az: 180 },
+    { label: "W", az: 270 },
+    { label: "N", az: 360 },
+  ]
+    .map((tick) => `<text x="${toX(tick.az)}" y="145" text-anchor="middle" class="night-sky-compass-label">${tick.label}</text>`)
+    .join("");
+
+  // Azimuth wraps at 360/0 (north) - a line whose two ends land on
+  // opposite sides of that seam would otherwise draw a spurious streak
+  // clear across the chart, so lines wider than half the sky are skipped
+  // rather than drawn wrapped.
+  const starByName = new Map(stars.map((s) => [s.name, s]));
+  const lines = CONSTELLATION_LINES.map(([fromName, toName]) => {
+    const from = starByName.get(fromName);
+    const to = starByName.get(toName);
+    if (!from || !to || Math.abs(from.az - to.az) > 180) return "";
+    return `<line x1="${toX(from.az)}" y1="${toY(from.alt)}" x2="${toX(to.az)}" y2="${toY(to.alt)}" class="night-sky-constellation-line" />`;
+  }).join("");
+
+  // One label per constellation, anchored to its first-listed (brightest
+  // by catalog order) star - every star getting its own name would be
+  // unreadable clutter at this scale.
+  const labeledConstellations = new Set();
+  const starDots = stars
+    .map((star) => {
+      const x = toX(star.az);
+      const y = toY(star.alt);
+      let label = "";
+      if (star.con && !labeledConstellations.has(star.con)) {
+        labeledConstellations.add(star.con);
+        label = `<text x="${x}" y="${y - 6}" text-anchor="middle" class="night-sky-star-label">${escapeHtml(star.con)}</text>`;
+      }
+      return `<circle cx="${x}" cy="${y}" r="${starDotRadius(star.mag)}" class="night-sky-star-dot" />${label}`;
+    })
+    .join("");
+
+  const planetDots = visibleBodies
+    .map((body) => {
+      const x = toX(body.az);
+      const y = toY(body.alt);
+      return `<g>
+          <circle cx="${x}" cy="${y}" r="4" class="night-sky-dot" />
+          <text x="${x}" y="${y - 8}" text-anchor="middle" class="night-sky-dot-label">${NIGHT_SKY_BODY_LABELS[body.key]}</text>
+        </g>`;
+    })
+    .join("");
+
+  svg.innerHTML = `<line x1="0" y1="130" x2="360" y2="130" class="night-sky-horizon-line" />${compassTicks}${lines}${starDots}${planetDots}`;
+}
+
+function renderNightSkyList(visibleBodies) {
+  const list = byId("night-sky-list");
+  if (!list) return;
+
+  if (visibleBodies.length === 0) {
+    list.innerHTML = '<div class="night-sky-empty">Nothing bright is up right now.</div>';
+    return;
+  }
+
+  list.innerHTML = visibleBodies
+    .map(
+      (body) => `<div class="night-sky-row">
+        <span class="night-sky-row-name">${NIGHT_SKY_BODY_LABELS[body.key]}</span>
+        <span class="night-sky-row-detail">${altitudeDescription(body.alt)} in the ${compassDirection(body.az)}</span>
+      </div>`
+    )
+    .join("");
+}
+
+// Annual meteor showers, peak month/day (roughly stable year to year -
+// within about a day of the same calendar date) and typical peak hourly
+// rate under dark skies. Deliberately excludes ISS passes - those need
+// live orbital data over the network, which would break this view's
+// "no backend, works offline" design, unlike a shower's peak date, which
+// is a fixed, well-documented annual event safe to hardcode.
+const METEOR_SHOWERS = [
+  { name: "Quadrantids", month: 1, day: 3, rate: 80 },
+  { name: "Lyrids", month: 4, day: 22, rate: 18 },
+  { name: "Eta Aquariids", month: 5, day: 5, rate: 30 },
+  { name: "Perseids", month: 8, day: 12, rate: 60 },
+  { name: "Draconids", month: 10, day: 8, rate: 10 },
+  { name: "Orionids", month: 10, day: 21, rate: 20 },
+  { name: "Leonids", month: 11, day: 17, rate: 15 },
+  { name: "Geminids", month: 12, day: 13, rate: 120 },
+  { name: "Ursids", month: 12, day: 22, rate: 10 },
+];
+
+// Within a day either side of the listed peak - a shower is a few-day
+// window in reality, but the peak date is the only part worth naming.
+const METEOR_SHOWER_WINDOW_DAYS = 1;
+
+function activeMeteorShower(date) {
+  return METEOR_SHOWERS.find((shower) => {
+    const peak = new Date(date.getFullYear(), shower.month - 1, shower.day);
+    const daysAway = Math.abs((date - peak) / 86400000);
+    return daysAway <= METEOR_SHOWER_WINDOW_DAYS;
+  });
+}
+
+function renderNightSkyView() {
+  const now = new Date();
+  setText("night-sky-moon-label", moonPhaseLabel(now));
+
+  const shower = activeMeteorShower(now);
+  const hint = byId("night-sky-meteor-hint");
+  if (hint) {
+    hint.textContent = shower ? `${shower.name} peak tonight - up to ~${shower.rate}/hr after midnight.` : "";
+    hint.classList.toggle("hidden", !shower);
+  }
+
+  const { planets, gmst } = currentSkyPositions(now);
+  const bodies = Object.entries(planets)
+    .map(([key, pos]) => ({ key, ...pos }))
+    .filter((body) => body.alt > 0)
+    .sort((a, b) => b.alt - a.alt);
+  const stars = visibleStars(gmst);
+
+  renderNightSkyChart(bodies, stars);
+  renderNightSkyList(bodies);
+}
+
+function enterNightSkyView() {
+  renderNightSkyView();
+  byId("night-sky-overlay")?.classList.remove("hidden");
+}
+
+function exitNightSkyView() {
+  byId("night-sky-overlay")?.classList.add("hidden");
+}
+
+function setupNightSkyView() {
+  byId("night-sky-trigger-btn")?.addEventListener("click", enterNightSkyView);
+  byId("night-sky-overlay")?.addEventListener("click", exitNightSkyView);
+}
+
+// ---------------------------------------------------------------------------
 // Rendering - one function per card, each safely no-ops on missing/null
 // data, plus the Morning Briefing.
 // ---------------------------------------------------------------------------
 
 let lastWeatherData = null;
 
+/** Prefers Aurora's near-term, minute-resolution nowcast (rainStartsInMinutes,
+ *  computed from Open-Meteo's minutely_15 block) over the coarser same-day
+ *  hourly one (rainExpectedAt) when both are available - "starting in
+ *  ~15 min" is more actionable than "expected 2:00 PM" when it's actually
+ *  about to start. Below 5 minutes just says "soon" rather than a jittery
+ *  "~1 min" that'll be stale by the time anyone reads it. */
+function rainNowcastText(weather) {
+  if (weather.rainStartsInMinutes != null) {
+    return weather.rainStartsInMinutes < 5
+      ? "Rain starting soon"
+      : `Rain starting in ~${weather.rainStartsInMinutes} min`;
+  }
+  if (weather.rainExpectedAt) {
+    return `Rain expected ${formatTimeOfDay(weather.rainExpectedAt)}`;
+  }
+  return "";
+}
+
 function renderWeather(weather) {
   lastWeatherData = weather;
+  setText("weather-moon-label-lg", moonPhaseLabel(new Date()));
   if (!weather) {
     setIcon("weather-icon", "cloud");
     setText("weather-temp", "--°");
@@ -1435,7 +2034,7 @@ function renderWeather(weather) {
   // Same "bring an umbrella" signal the Morning Briefing already surfaces
   // (see renderMorningBriefing) - shown here too since the Weather card is
   // where you'd actually look for it once the briefing's scrolled by.
-  const rainText = weather.rainExpectedAt ? `Rain expected ${formatTimeOfDay(weather.rainExpectedAt)}` : "";
+  const rainText = rainNowcastText(weather);
   setIcon("weather-rain-icon", "rain");
   setText("weather-rain-text", rainText);
   byId("weather-rain")?.classList.toggle("hidden", !rainText);
@@ -2234,6 +2833,48 @@ function renderSoundMachine(state) {
   renderRecentSounds();
 }
 
+const RAIN_SOUND_SUGGESTED_KEY = "aurora-dashboard:rain-sound-suggested-date";
+const RAIN_SOUND_CONDITION_RE = /rain|drizzle|thunderstorm|showers/i;
+
+/** A once-per-day, dismissible nudge - never auto-plays anything itself.
+ *  Skipped entirely if a sound's already active (per Aurora's own
+ *  soundMachine state, not just this tab's local playback), so it never
+ *  second-guesses something already in progress. */
+function maybeSuggestRainSound(weather) {
+  const hint = byId("sound-rain-hint");
+  if (!hint) return;
+
+  const isRaining = RAIN_SOUND_CONDITION_RE.test(weather?.condition || "");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: currentTimezone || undefined });
+  const alreadySuggestedToday = localStorage.getItem(RAIN_SOUND_SUGGESTED_KEY) === today;
+  const soundAlreadyActive = Boolean(lastDashboardData?.soundMachine?.sound);
+
+  if (!isRaining || alreadySuggestedToday || soundAlreadyActive) {
+    hint.classList.add("hidden");
+    return;
+  }
+
+  setIcon("sound-rain-hint-icon", "rain");
+  hint.classList.remove("hidden");
+}
+
+function dismissRainSoundHint() {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: currentTimezone || undefined });
+  localStorage.setItem(RAIN_SOUND_SUGGESTED_KEY, today);
+  byId("sound-rain-hint")?.classList.add("hidden");
+}
+
+function setupRainSoundHint() {
+  byId("sound-rain-hint-play")?.addEventListener("click", async () => {
+    await startLocalPlayback("rain", 0);
+    await postAction("/sound/play?id=rain");
+    recordRecentSound("rain");
+    dismissRainSoundHint();
+    poll();
+  });
+  byId("sound-rain-hint-dismiss")?.addEventListener("click", dismissRainSoundHint);
+}
+
 /** null if [minutesUntil] is negative or unknown - "in 45 min" / "in 3
  *  hrs" otherwise. Rounds to the hour past 60 minutes out; nobody needs
  *  "in 3 hrs 12 min" at a glance. */
@@ -2293,6 +2934,78 @@ function renderMorningBriefing(data) {
     eventLine = countdown ? `${firstEvent.title} ${countdown}` : `${firstEvent.title} at ${formatTimeOfDay(firstEvent.start)}`;
   }
   setText("briefing-summary", eventLine);
+}
+
+// ---------------------------------------------------------------------------
+// Good Morning Briefing - spoken twin of renderMorningBriefing() above, via
+// the browser's own built-in speechSynthesis. No mic involved. This repo
+// had no spoken output at all before this (the old voice "goodnight"
+// command just silently called enterBedsideMode()) - still no Bedtime
+// Briefing equivalent here either, out of scope for this feature.
+// ---------------------------------------------------------------------------
+
+/** Mirrors renderMorningBriefing()'s own data selection (same weather/
+ *  calendar/userName fields, same "only today's first event, not
+ *  tomorrow's" guard) but as spoken sentences instead of terse on-screen
+ *  fragments. Skips a sentence entirely rather than reading a gap or a
+ *  "null" out loud, same approach as echo-dashboard-solo's briefings. */
+function buildMorningBriefingText(data) {
+  const sentences = [];
+
+  const hour = currentHourInTimezone(currentTimezone || undefined);
+  const greeting = greetingForHour(hour);
+  sentences.push(data.userName ? `${greeting}, ${data.userName}.` : `${greeting}.`);
+
+  const weather = data.weather;
+  if (weather) {
+    let weatherLine = `It's ${displayTemp(weather.temperature)} degrees and ${weather.condition.toLowerCase()}, reaching ${displayTemp(weather.high)} today.`;
+    if (weather.rainExpectedAt) {
+      weatherLine += ` Bring an umbrella - rain's expected around ${formatTimeOfDay(weather.rainExpectedAt)}.`;
+    }
+    sentences.push(weatherLine);
+  }
+
+  const firstEvent = data.calendar && data.calendar.length > 0 ? data.calendar[0] : null;
+  if (firstEvent && !data.calendarShowsTomorrow) {
+    const time = firstEvent.allDay ? "all day" : formatTimeOfDay(firstEvent.start);
+    sentences.push(`Your first thing today is ${firstEvent.title}, at ${time}.`);
+  }
+
+  return sentences.join(" ");
+}
+
+function isMorningBriefingSpeaking() {
+  return typeof window.speechSynthesis !== "undefined" && window.speechSynthesis.speaking;
+}
+
+/** A second tap while it's already talking stops it, same "tap again to
+ *  cancel" idea used throughout this dashboard for preview/speech buttons. */
+function speakMorningBriefing() {
+  if (typeof window.speechSynthesis === "undefined" || !lastDashboardData) return;
+  if (isMorningBriefingSpeaking()) {
+    window.speechSynthesis.cancel();
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(buildMorningBriefingText(lastDashboardData));
+  utterance.rate = 0.95;
+  const btn = byId("morning-briefing-btn");
+  utterance.onstart = () => btn?.classList.add("speaking");
+  utterance.onend = () => btn?.classList.remove("speaking");
+  utterance.onerror = () => btn?.classList.remove("speaking");
+  window.speechSynthesis.speak(utterance);
+}
+
+function setupMorningBriefing() {
+  const btn = byId("morning-briefing-btn");
+  if (typeof window.speechSynthesis === "undefined") {
+    // No speech synthesis in this WebView - hide the button entirely
+    // rather than leaving a control that silently does nothing.
+    btn?.classList.add("hidden");
+    return;
+  }
+  setIcon("morning-briefing-icon", "speaker");
+  btn?.addEventListener("click", speakMorningBriefing);
 }
 
 let lastAppliedLayoutJson = null;
@@ -2455,12 +3168,20 @@ function setupLayoutSettings() {
   });
 }
 
+// Cached so speakMorningBriefing() (only called later, on a button tap) can
+// build its sentences from the same data renderMorningBriefing() last
+// rendered - this repo has no persistent per-field globals like
+// echo-dashboard-solo's lastWeatherData, just the poll response itself.
+let lastDashboardData = null;
+
 function renderDashboard(data) {
+  lastDashboardData = data;
   applyTileLayout(data.layout && data.layout.length > 0 ? data.layout : DEFAULT_TILE_LAYOUT);
   renderLayoutSettings(data);
   renderMorningBriefing(data);
   renderProfileSettings(data);
   renderWeather(data.weather);
+  if (data.weather) maybeSuggestRainSound(data.weather);
   renderRadar(data.weather);
   renderAirQuality(data.weather);
   renderWeatherDetails(data.weather);
@@ -3262,10 +3983,12 @@ function reconcileWakeAlarm(ringingState) {
     showAlarmRingingOverlay(ringingState.label);
     // A ringing alarm needs the full-screen dismiss/snooze overlay visible
     // and audible - staying in Bedside Mode's own dim, quiet view would bury
-    // it, so an active bedside session ends automatically the moment an
-    // alarm goes off.
+    // it, so an active bedside session's visual state ends the moment an
+    // alarm goes off. The sleep *session* itself stays open though
+    // (endSession=false) - you're not actually up yet, just ringing; it
+    // only ends once dismissWakeAlarm() fires, not on every snooze.
     if (document.body.classList.contains("bedside-active")) {
-      exitBedsideMode();
+      exitBedsideMode(false);
     }
   } else if (!shouldRing && isAlarmRinging) {
     isAlarmRinging = false;
@@ -3283,8 +4006,12 @@ function reconcileWakeAlarm(ringingState) {
 const SNOOZE_DURATION_KEY = "aurora-dashboard:snooze-duration";
 
 /** Tells Aurora, then poll() picks up the resulting !ringing state on its
- *  next round-trip and reconcileWakeAlarm() above tears down the UI. */
+ *  next round-trip and reconcileWakeAlarm() above tears down the UI.
+ *  endSleepSession() fires immediately rather than waiting on that
+ *  round-trip - see reconcileWakeAlarm()'s exitBedsideMode(false) call for
+ *  why the session wasn't already closed. */
 function dismissWakeAlarm() {
+  endSleepSession();
   postAction("/wakealarms/dismiss").then(poll);
 }
 
@@ -3834,12 +4561,18 @@ async function enterBedsideMode() {
   poll();
 }
 
-function exitBedsideMode() {
+/** endSession defaults to true (the manual exit button's plain
+ *  addEventListener("click", exitBedsideMode) call passes a MouseEvent
+ *  here, which is truthy and !== false, so that default is preserved) -
+ *  pass false only when the sleep session should stay open, e.g. a ringing
+ *  alarm force-closing the overlay without actually ending the night yet.
+ *  See reconcileWakeAlarm()/dismissWakeAlarm(). */
+function exitBedsideMode(endSession) {
   byId("bedside-overlay")?.classList.add("hidden");
   document.body.classList.remove("bedside-active");
   resetAmbientIdleTimer();
   postAction("/dnd/set?enabled=false").then(poll);
-  endSleepSession();
+  if (endSession !== false) endSleepSession();
 }
 
 function setupBedsideMode() {
@@ -4441,7 +5174,11 @@ function init() {
   setupQuickDurationPopover();
   setupTimerPage();
   setupReadingMode();
+  setupMorningBriefing();
+  setupRainSoundHint();
+  setupSleepInsightsPage();
   setupWeekView();
+  setupNightSkyView();
   renderSleepHistory();
   setupPrivacyToggle();
   setupNotificationAppToggles();

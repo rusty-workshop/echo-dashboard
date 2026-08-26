@@ -126,6 +126,9 @@
           <button class="icon-button reading-mode-trigger-btn" id="reading-mode-trigger-btn" type="button" aria-label="Toggle Reading Mode" aria-pressed="false">
             <span class="icon-slot" id="reading-mode-trigger-icon" aria-hidden="true"></span>
           </button>
+          <button class="icon-button morning-briefing-btn" id="morning-briefing-btn" type="button" aria-label="Hear this morning's briefing">
+            <span class="icon-slot" id="morning-briefing-icon" aria-hidden="true"></span>
+          </button>
           <button class="icon-button bedside-trigger-btn" id="bedside-trigger-btn" type="button" aria-label="Enter Bedside Mode">
             <span class="icon-slot" id="bedside-trigger-icon" aria-hidden="true"></span>
           </button>
@@ -246,6 +249,11 @@
         <section class="card card-sound" id="card-sound" aria-label="Sound Machine">
           <h2 class="card-title">Sound Machine</h2>
           <div class="card-body">
+            <div class="sound-rain-hint hidden" id="sound-rain-hint">
+              <span class="icon-slot small" id="sound-rain-hint-icon" aria-hidden="true"></span>
+              <button class="sound-rain-hint-text" id="sound-rain-hint-play" type="button">It's raining - play Rain sounds?</button>
+              <button class="sound-rain-hint-dismiss" id="sound-rain-hint-dismiss" type="button" aria-label="Dismiss suggestion">&times;</button>
+            </div>
             <div class="sound-current">
               <span class="icon-slot" id="sound-icon" aria-hidden="true"></span>
               <span id="sound-name" class="sound-name">Off</span>
@@ -347,6 +355,10 @@
           <div class="weather-range-lg" id="weather-sun-lg">
             <span>Sunrise <b id="weather-sunrise-lg">--:--</b></span>
             <span>Sunset <b id="weather-sunset-lg">--:--</b></span>
+          </div>
+          <div class="weather-range-lg weather-moon-row">
+            <span id="weather-moon-label-lg"></span>
+            <button class="night-sky-trigger-btn" id="night-sky-trigger-btn" type="button">Night Sky</button>
           </div>
           <div class="weather-rain-lg hidden" id="weather-rain-lg">
             <span class="icon-slot small" id="weather-rain-icon-lg" aria-hidden="true"></span>
@@ -472,7 +484,40 @@
       </div>
     </section>
 
-    <!-- Page 6: Settings - just the theme picker for now. One shared
+    <!-- Page 6: Sleep Insights - promotes what used to be a small chart
+         buried in Settings into its own page. Still backed by the exact
+         same localStorage session log (see startSleepSession()/
+         endSleepSession() in script.js) - "how did I actually sleep"
+         deserves more than a corner of Settings most people never open. -->
+    <section class="page page-sleep" id="page-sleep" aria-label="Sleep Insights">
+      <h2 class="sleep-page-title">
+        <span class="icon-slot" id="sleep-page-title-icon" aria-hidden="true"></span>
+        Sleep Insights
+      </h2>
+
+      <div class="sleep-stats-row">
+        <div class="sleep-stat">
+          <span class="sleep-stat-value" id="sleep-stat-avg">–</span>
+          <span class="sleep-stat-label">avg this week</span>
+        </div>
+        <div class="sleep-stat">
+          <span class="sleep-stat-value" id="sleep-stat-streak">–</span>
+          <span class="sleep-stat-label">night streak</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Last 7 Days</h2>
+        <div class="sleep-history-chart" id="sleep-history-chart"></div>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-title">Last 30 Days</h2>
+        <div class="sleep-trend-chart" id="sleep-trend-chart"></div>
+      </div>
+    </section>
+
+    <!-- Page 7: Settings - just the theme picker for now. One shared
          layout/JS underneath every theme (see the [data-theme] blocks at
          the end of style.css) - each swatch just swaps CSS variables and
          a handful of signature rules, nothing here or in script.js
@@ -613,10 +658,9 @@
       </div>
 
       <div class="settings-section">
-        <h2 class="settings-title">Sleep History</h2>
-        <div class="settings-text-hint">How long Bedside Mode ran each night - not sensor-based sleep tracking, just when Bedside Mode was on.</div>
-        <div class="sleep-history-chart" id="sleep-history-chart"></div>
-        <div class="settings-text-hint" id="sleep-history-avg">No Bedside Mode sessions yet this week</div>
+        <h2 class="settings-title">Sleep Insights</h2>
+        <div class="settings-text-hint">How long Bedside Mode ran each night, plus a 30-day trend and streak.</div>
+        <button class="alarm-action-btn timer-secondary-btn" id="see-sleep-insights-btn" type="button">See Sleep Insights</button>
       </div>
 
       <div class="settings-section">
@@ -671,7 +715,7 @@
       </div>
     </section>
 
-    <!-- Page 7: Timer & Stopwatch - deliberately its own page rather than
+    <!-- Page 8: Timer & Stopwatch - deliberately its own page rather than
          squeezed into the already-packed Clock/Sound Machine page, since a
          countdown/stopwatch wants real tap targets and a big readable
          number, not another compressed row. -->
@@ -715,8 +759,9 @@
     <button class="page-dot" data-page="2" aria-label="Daily Info"></button>
     <button class="page-dot" data-page="3" aria-label="Clock and Sound Machine"></button>
     <button class="page-dot" data-page="4" aria-label="Wake Alarms"></button>
-    <button class="page-dot" data-page="5" aria-label="Settings"></button>
-    <button class="page-dot" data-page="6" aria-label="Timer and Stopwatch"></button>
+    <button class="page-dot" data-page="5" aria-label="Sleep Insights"></button>
+    <button class="page-dot" data-page="6" aria-label="Settings"></button>
+    <button class="page-dot" data-page="7" aria-label="Timer and Stopwatch"></button>
   </nav>
 
   <!-- Shared by the DND and Focus toggles (see setupQuickDurationPopover()
@@ -860,6 +905,17 @@
       <div class="ambient-weather" id="ambient-weather"></div>
       <div class="ambient-moon" id="ambient-moon"></div>
     </div>
+  </div>
+
+  <div class="night-sky-overlay hidden" id="night-sky-overlay" aria-label="Night sky, tap anywhere to exit">
+    <div class="night-sky-header">
+      <span id="night-sky-moon-label"></span>
+    </div>
+    <div class="night-sky-meteor-hint hidden" id="night-sky-meteor-hint"></div>
+    <div class="night-sky-chart-wrap">
+      <svg class="night-sky-chart" id="night-sky-chart" viewBox="0 0 360 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+    </div>
+    <div class="night-sky-list" id="night-sky-list"></div>
   </div>
 
   <script src="script.js"></script>

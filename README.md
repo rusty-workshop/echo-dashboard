@@ -19,18 +19,28 @@ however you like, right down to matching your own wallpaper's colors.
 
 ## Features
 
-- **Six swipeable pages** (CSS scroll-snap, real touch scrolling, tap-to-jump
+- **Eight swipeable pages** (CSS scroll-snap, real touch scrolling, tap-to-jump
   dot indicators): a Morning Overview, a dedicated Phone page, a Daily Info
-  page, a Clock/Alarm/Sound Machine page, a Wake Alarms page, and a
-  Settings page for picking a theme. Two more full-screen views live
-  outside that swipeable set entirely, summoned rather than swiped to —
-  see Bedside Mode and Ambient Mode below.
-- **Morning Briefing**: a one-glance summary composed client-side from
-  weather, calendar, and rain forecast — a greeting, today's conditions
-  (with an umbrella warning if rain is expected), and a countdown to your
-  next calendar event. The same rain heads-up also shows directly on the
-  Weather card and the Daily Info page, in case you scroll past the
-  briefing without reading it.
+  page, a Clock/Alarm/Sound Machine page, a Wake Alarms page, a Sleep
+  Insights page, a Settings page, and a Timer/Stopwatch page. More
+  full-screen views live outside that swipeable set entirely, summoned
+  rather than swiped to — see Bedside Mode, Ambient Mode, and Night Sky
+  View below.
+- **Morning Briefing**, with a spoken twin — **Good Morning Briefing**: a
+  one-glance summary composed client-side from weather, calendar, and rain
+  forecast — a greeting, today's conditions (with an umbrella warning if
+  rain is expected), and a countdown to your next calendar event. A
+  speaker icon next to it reads the same briefing aloud via the browser's
+  own built-in speech synthesis, no network or API key involved — the
+  button hides itself rather than doing nothing if the kiosk browser's
+  WebView doesn't actually implement `speechSynthesis`.
+- **Rain nowcast**: the same umbrella heads-up shows directly on the
+  Weather card and the Daily Info page too, in case you scroll past the
+  briefing without reading it — prefers a 15-minute-resolution "Rain
+  starting in ~15 min" estimate when it's imminent, falling back to a
+  same-day hourly one otherwise. When it's actually raining, the Sound
+  Machine card also offers a one-tap, once-a-day, dismissible suggestion
+  to play the Rain sound — never auto-plays on its own.
 - **Wake Alarms**: set, edit, and delete Aurora's own alarms right from
   this display — time, repeat days, and which sound rings. When one
   fires, a full-screen overlay takes over (any page, not just wherever you
@@ -58,6 +68,20 @@ however you like, right down to matching your own wallpaper's colors.
   same animated weather effect that plays over the main dashboard bleeds
   through here too, dimmed along with everything else, instead of
   disappearing behind the screensaver. Any touch exits it instantly.
+- **Sleep Insights**: its own dedicated page — a 7-day bar chart, a 30-day
+  trend sparkline, a weekly average, and a night-streak count, all from
+  how long Bedside Mode ran each night (getting in bed to actually
+  dismissing your alarm, not just when the alarm started ringing) — not
+  sensor-based sleep tracking, just when Bedside Mode was genuinely on.
+- **Night Sky View, with a real star map**: which naked-eye planets —
+  Mercury, Venus, Mars, Jupiter, Saturn — plus the Moon and ~40 of the
+  brightest stars across a dozen recognizable constellations (Big Dipper,
+  Orion, Cassiopeia, Cygnus, and more) are above the horizon right now,
+  drawn as a real connect-the-dots star chart on a horizon panorama.
+  Computed entirely offline from classical orbital elements for the
+  planets and fixed catalog coordinates for the stars — nothing fetched
+  from any API. Also flags when a major annual meteor shower is at its
+  peak tonight, from a small static almanac of the year's showers.
 - **Configurable main-UI wallpaper**: the same photo library you pick for
   Ambient Mode drives the main dashboard's background too (scrimmed for
   legibility) — pick from the Aurora phone app whether it rotates the

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aurora + echo-dashboard — a bedside smart display with no cloud</title>
+<title>Aurora + echo-dashboard: a bedside smart display with no cloud</title>
 <meta name="description" content="A self-hosted, two-device bedside smart display. No cloud account, no subscription, no third-party server. Built from an old Echo Show and an Android phone.">
 <style>
   :root {
@@ -448,7 +448,7 @@
     <div class="kicker">self-hosted · LAN-only · no cloud</div>
     <h1>A bedside smart display<br>with no cloud, no subscription.</h1>
     <p class="pitch">Built from an old <b>Echo Show 5</b> and the phone already in your pocket. Two small
-    open-source projects, talking to each other over your own Wi-Fi — nothing else in the stack.</p>
+    open-source projects that talk to each other over your own Wi-Fi. Nothing else is in the stack.</p>
 
     <div class="cta-row">
       <a class="btn primary" href="https://github.com/rustyisacat/Aurora" target="_blank" rel="noopener">
@@ -508,7 +508,7 @@
     <div class="section-head">
       <div class="kicker">architecture</div>
       <h2>Two repos. One LAN. Zero servers you don't own.</h2>
-      <p class="section-sub">The system is split cleanly along the phone/display boundary — each half is its own
+      <p class="section-sub">The system is split cleanly along the phone/display boundary, and each half is its own
       small, independently-buildable project.</p>
     </div>
 
@@ -521,7 +521,7 @@
         local HTTP server and expose one JSON snapshot.</p>
         <ul>
           <li>Embedded NanoHTTPD server, <code class="mono">GET /dashboard</code></li>
-          <li>Foreground service — only serves while on home Wi-Fi</li>
+          <li>Foreground service that only serves while on home Wi-Fi</li>
           <li>Control endpoints (Bedside Mode triggers, DND, etc.)</li>
           <li>Reads phone state: battery, notifications, calendar</li>
         </ul>
@@ -532,7 +532,7 @@
         <span class="panel-tag alt">frontend · runs on display</span>
         <h3>echo-dashboard</h3>
         <span class="repo mono">rustyisacat/echo-dashboard</span>
-        <p>Plain HTML/CSS/JS kiosk app — no build step, no framework. Polls Aurora and renders the whole bedside
+        <p>Plain HTML/CSS/JS kiosk app with no build step and no framework. Polls Aurora and renders the whole bedside
         experience client-side on the repurposed Echo Show.</p>
         <ul>
           <li>Polls <code class="mono">/dashboard</code> every 30 seconds</li>
@@ -598,18 +598,18 @@
       <div class="feature">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="6" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="18" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="1" fill="currentColor" stroke="none"/><path d="M4 20a8 8 0 0116 0"/></svg></div>
         <h4>Offline Night Sky</h4>
-        <p>Planets and a real star map computed from classical orbital mechanics — no network required.</p>
+        <p>Planets and a real star map computed from classical orbital mechanics, with no network required.</p>
       </div>
       <div class="feature">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2a5 5 0 015 5c0 3-5 11-5 11S7 10 7 7a5 5 0 015-5z"/><circle cx="12" cy="7" r="1.6"/></svg></div>
         <h4>LAN-only, always</h4>
-        <p>Aurora only serves while on the configured home Wi-Fi — nothing is ever exposed externally.</p>
+        <p>Aurora only serves while on the configured home Wi-Fi, so nothing is ever exposed externally.</p>
       </div>
     </div>
 
     <div class="solo-note">
       There's also a phone-free <span class="mono-tag">solo</span> variant of the dashboard that doesn't require
-      Aurora at all — it's a separate project with its own site, not covered here.
+      Aurora at all. It's a separate project with its own site, not covered here.
     </div>
   </div>
 </section>
@@ -644,7 +644,7 @@
 
 <footer>
   <div class="wrap">
-    <div>Aurora + echo-dashboard — built by <a href="https://github.com/rustyisacat" target="_blank" rel="noopener">rustyisacat</a></div>
+    <div>Aurora + echo-dashboard, built by <a href="https://github.com/rustyisacat" target="_blank" rel="noopener">rustyisacat</a></div>
     <div class="license">Licensed under AGPL-3.0-or-later</div>
   </div>
 </footer>

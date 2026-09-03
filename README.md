@@ -4,6 +4,8 @@
 ![No build step](https://img.shields.io/badge/build%20step-none-success)
 ![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)
 
+🌐 **[Live site](https://echo-dashboard.rusty.is-a.dev/)**
+
 A dark, swipeable bedside dashboard for a repurposed Amazon Echo Show,
 built entirely in vanilla HTML/CSS/JS — no framework, no bundler, no
 `node_modules`. It pulls from [**Aurora**](https://github.com/rustyisacat/Aurora) v4.0, a
@@ -168,7 +170,7 @@ No build tools, no package manager, no dependencies: just `index.html`,
 1. **Clone the repo:**
 
    ```
-   git clone https://github.com/rustyisacat/echo-dashboard.git
+   git clone https://github.com/rusty-workshop/echo-dashboard.git
    cd echo-dashboard
    ```
 

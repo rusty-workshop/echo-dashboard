@@ -1,0 +1,43 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="0%" r="75%">
+      <stop offset="0%" stop-color="#10203e"/>
+      <stop offset="55%" stop-color="#060c18"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(70,130,200,0.08)" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- kicker -->
+  <text x="600" y="140" text-anchor="middle" font-family="'IBM Plex Mono',Consolas,monospace" font-size="18" letter-spacing="4" fill="#2a7fb8">// SELF-HOSTED &#183; LAN-ONLY &#183; NO CLOUD</text>
+
+  <!-- title -->
+  <text x="600" y="205" text-anchor="middle" font-family="-apple-system,'Segoe UI',Roboto,sans-serif" font-size="52" font-weight="600" fill="#eaf6ff">Aurora + echo-dashboard</text>
+
+  <!-- tagline -->
+  <text x="600" y="248" text-anchor="middle" font-family="-apple-system,'Segoe UI',Roboto,sans-serif" font-size="24" fill="#9fb6cc">A bedside smart display with no cloud, no subscription.</text>
+
+  <!-- schematic -->
+  <g>
+    <path d="M 330,420 C 500,320 700,320 870,420" fill="none" stroke="#2a7fb8" stroke-width="2" stroke-dasharray="6 8" opacity="0.7"/>
+    <path d="M 870,470 C 700,560 500,560 330,470" fill="none" stroke="#2a7fb8" stroke-width="2" stroke-dasharray="6 8" opacity="0.7"/>
+
+    <!-- phone node -->
+    <rect x="230" y="400" width="130" height="90" rx="10" fill="#0c1830" stroke="#2a7fb8" stroke-width="1.6"/>
+    <rect x="270" y="412" width="50" height="66" rx="5" fill="none" stroke="#2a7fb8" stroke-width="1.2"/>
+    <text x="295" y="512" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="15" fill="#7fe6ff">PHONE</text>
+
+    <!-- display node -->
+    <rect x="840" y="400" width="130" height="90" rx="10" fill="#0c1830" stroke="#2a7fb8" stroke-width="1.6"/>
+    <rect x="862" y="414" width="86" height="56" rx="4" fill="none" stroke="#2a7fb8" stroke-width="1.2"/>
+    <rect x="895" y="472" width="20" height="8" fill="none" stroke="#2a7fb8" stroke-width="1"/>
+    <text x="905" y="512" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="15" fill="#7fe6ff">DISPLAY</text>
+
+    <circle cx="600" cy="370" r="6" fill="#7fe6ff"/>
+    <circle cx="600" cy="520" r="6" fill="#ffb454"/>
+  </g>
+</svg>

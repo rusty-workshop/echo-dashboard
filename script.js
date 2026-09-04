@@ -2761,8 +2761,24 @@ function renderBedsideTomorrow(data) {
   el.textContent = `${dayWord}: ${firstEvent.title || "Untitled"} at ${time}`;
 }
 
+/** Bare time when the alarm rings today, day-prefixed ("Thu 5:00 AM")
+ *  otherwise - the phone's stock Clock app can easily have its next alarm
+ *  several days out, which read as if it were today's alarm before this.
+ *  triggerAtMillis is a fairly recent addition on the Aurora side
+ *  (AlarmMapper.toNextAlarm()) - falls back to the bare time if it's ever
+ *  missing (a stale cached response, an older Aurora build) rather than
+ *  showing "NaN" or throwing. */
+function nextAlarmDisplayText(nextAlarm) {
+  if (!nextAlarm) return "No alarm";
+  const time = formatTimeOfDay(nextAlarm.time);
+  if (!nextAlarm.triggerAtMillis) return time;
+  if (localDateKey(new Date(nextAlarm.triggerAtMillis)) === localDateKey(new Date())) return time;
+  const dayAbbrev = DAY_ABBREVIATIONS[new Date(nextAlarm.triggerAtMillis).getDay()];
+  return `${dayAbbrev} ${time}`;
+}
+
 function renderAlarm(nextAlarm) {
-  const text = nextAlarm ? formatTimeOfDay(nextAlarm.time) : "No alarm";
+  const text = nextAlarmDisplayText(nextAlarm);
 
   // Alarm appears three times - the compact Overview card, the inline
   // line under the clock on the Clock/Sound page, and again in Bedside
